@@ -2100,7 +2100,7 @@ with tab_pattern:
             else:
                 weekday_curves.append(curve)
 
-        today_dow = datetime.now().dayofweek
+        today_dow = datetime.now().weekday()
         if today_dow >= 5 and len(weekend_curves) >= 3:
             all_curve_matrix = np.array(weekend_curves); baseline_label = "Weekend baseline"
         elif len(weekday_curves) >= 3:
@@ -2109,9 +2109,16 @@ with tab_pattern:
             all_curve_matrix = np.array(list(all_curves.values())); baseline_label = "All-days baseline"
 
         median_curve = np.median(all_curve_matrix, axis=0)
-        lower_band   = np.percentile(all_curve_matrix, 25, axis=0)
-        upper_band   = np.percentile(all_curve_matrix, 75, axis=0)
 
+        # Supply hours: 6–10 AM and 17–21 (5–9 PM) — adjust as needed
+        SUPPLY_HOURS = list(range(6, 11)) + list(range(17, 22))
+
+        supply_avg = np.mean(all_curve_matrix[:, SUPPLY_HOURS])  # avg across supply hours & all days
+        margin_10pct = 0.10 * supply_avg                          # 10% of that avg
+
+        lower_band = median_curve - margin_10pct
+        upper_band = median_curve + margin_10pct
+        lower_band = np.clip(lower_band, 0, None)                 # flow can't go negative
     today_norm_curve = None
     if not today_df.empty:
         today_norm_curve = normalize_daily_curve(today_df)
@@ -2126,7 +2133,7 @@ with tab_pattern:
 
         fig, ax = plt.subplots(figsize=(13, 5))
         ax.fill_between(hours_axis, lower_band, upper_band, alpha=0.22, color="#4a90d9",
-                        label="Normal margin (25th–75th percentile of Jan+Feb)")
+                label=f"Normal margin (±10% of supply-hour avg = ±{margin_10pct:.3f})")
         ax.plot(hours_axis, upper_band, color="#4a90d9", lw=0.9, linestyle="--", alpha=0.7, label="Upper margin (75th %ile)")
         ax.plot(hours_axis, lower_band, color="#4a90d9", lw=0.9, linestyle="--", alpha=0.7, label="Lower margin (25th %ile)")
         ax.plot(hours_axis, median_curve, color="#e74c3c", lw=2.5,
@@ -2216,25 +2223,18 @@ with tab_pattern:
                     "Today stays inside the 25th–75th percentile band for all 24 hours.</span></div>",
                     unsafe_allow_html=True)
 
-        with st.expander("💡 How to make the margin wider or stricter"):
-            st.markdown("""
-**Currently using: 25th–75th percentile (IQR band)**
+            with st.expander("💡 How the margin is calculated"):
+                st.markdown(f"""
+            **Currently using: ±10% of supply-hour average (normalised)**
 
-This means: the "normal zone" covers the middle 50% of your historical days.
-An hour is flagged as anomaly if it's rarer than 1 in 4 days.
+            - Supply hours considered: 06:00–10:00 and 17:00–21:00
+            - Average normalised flow during supply hours across all Jan+Feb days: `{supply_avg:.3f}`
+            - 10% margin applied: `±{margin_10pct:.3f}`
+            - An hour is flagged anomaly if today's flow deviates more than ±10% from the median at that hour.
 
-**To make the margin WIDER (fewer false alarms):**
-Change `25` → `10` and `75` → `90` in the code.
-This would cover the middle 80% of days, so only very extreme deviations are flagged.
-
-**To make the margin STRICTER (catch more subtle issues):**
-Change `25` → `35` and `75` → `65` — this narrows the band and flags more hours.
-
-**What is "normalised" flow?**
-Each day is scaled so its minimum = 0 and maximum = 1.
-This lets us compare the *shape* of the day regardless of total volume.
-If one Jan day had twice the total flow of another, they can still have the same shape.
-""")
+            **To change supply hours:** Edit `SUPPLY_HOURS` list in the code.
+            **To change margin %:** Change `0.10` to e.g. `0.15` for 15% margin.
+            """)
     else:
         st.info("Not enough historical curves — fetch Jan+Feb data first using the button above.")
 
