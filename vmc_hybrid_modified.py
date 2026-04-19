@@ -2228,6 +2228,183 @@ with tab_pattern:
                            edgecolor="#2a2d3a", alpha=0.9))
         fig.tight_layout(pad=1.5); st.pyplot(fig); plt.close(fig)
 
+    # ─────────────────────────────────────────────────────────────────────
+    # ⑨ MEDIAN CURVE + MARGIN BAND — Today vs 2-Month Baseline
+    #
+    # HOW IT WORKS (beginner explanation):
+    #   Step 1: Take ALL daily curves from Jan+Feb (already loaded above).
+    #   Step 2: For each of the 24 hours, compute the MEDIAN value
+    #           across all days → this is the "typical" curve.
+    #   Step 3: Also compute the 25th and 75th percentile for each hour
+    #           → this gives us a "normal range" band (the margin).
+    #           Think of it like: most days the flow at 8am is between
+    #           150–300 m³/hr, so anything in that band is normal.
+    #   Step 4: Plot today's curve on top.
+    #           If today goes ABOVE the upper margin or BELOW the lower
+    #           margin at any hour → that hour is flagged as an anomaly.
+    #
+    # WHY MEDIAN instead of MEAN?
+    #   Median ignores extreme outlier days. If one day had a pipe burst
+    #   and flow spiked to 900, the median won't be affected.
+    #   Mean would be pulled up and give a wrong "typical" value.
+    #
+    # WHY 25th–75th PERCENTILE for margin?
+    #   This is called the "Inter-Quartile Range" (IQR).
+    #   It covers the middle 50% of your historical days.
+    #   Points outside this band are rarer than 1 in 4 days → anomaly.
+    #   You can widen the band (e.g., 10th–90th percentile) if you want
+    #   fewer false alarms, or narrow it for stricter checking.
+    # ─────────────────────────────────────────────────────────────────────
+    st.markdown(
+        "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:28px 0 6px'>"
+        "⑨ Median Curve + Margin Band — Today vs 2-Month Baseline</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div style='font-size:.78rem;color:#555d6e;margin-bottom:12px'>"
+        "The <span style='color:#e74c3c'>red line</span> is the median hourly flow "
+        "across all Jan+Feb days. The <span style='color:#4a90d9'>shaded blue band</span> "
+        "is the normal margin (25th–75th percentile). "
+        "Today's curve in <span style='color:#3fb950'>green</span> is compared against "
+        "this band — <span style='color:#ff6b6b'>red dots mark anomaly hours</span> "
+        "where today is outside the margin.</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ── Build the median and percentile bands from all Jan+Feb curves ──
+    if all_curves and len(all_curves) >= 3:
+        all_curve_matrix = np.array(list(all_curves.values()))  # shape: (n_days, 24)
+
+        median_curve = np.median(all_curve_matrix, axis=0)         # 24 values
+        lower_band   = np.percentile(all_curve_matrix, 25, axis=0) # 25th percentile
+        upper_band   = np.percentile(all_curve_matrix, 75, axis=0) # 75th percentile
+
+        # ── Get today's normalised curve ──────────────────────────────
+        today_norm_curve = None
+        if not today_df.empty:
+            today_norm_curve = normalize_daily_curve(today_df)
+
+        fig, ax = plt.subplots(figsize=(13, 5))
+
+        # ── Margin band (shaded area between lower and upper percentile) ──
+        ax.fill_between(
+            hours_axis, lower_band, upper_band,
+            alpha=0.22, color="#4a90d9",
+            label="Normal margin (25th–75th percentile of Jan+Feb)",
+        )
+
+        # ── Upper and lower margin edges (dashed lines) ───────────────
+        ax.plot(hours_axis, upper_band, color="#4a90d9", lw=0.9,
+                linestyle="--", alpha=0.7, label="Upper margin (75th %ile)")
+        ax.plot(hours_axis, lower_band, color="#4a90d9", lw=0.9,
+                linestyle="--", alpha=0.7, label="Lower margin (25th %ile)")
+
+        # ── Median line (the "typical day") ──────────────────────────
+        ax.plot(hours_axis, median_curve, color="#e74c3c", lw=2.5,
+                label=f"Median (typical day) — {len(all_curves)} days", zorder=5)
+
+        # ── Today's curve ─────────────────────────────────────────────
+        anomaly_hours = []
+        if today_norm_curve is not None:
+            ax.plot(hours_axis, today_norm_curve, color="#3fb950", lw=2.0,
+                    label="Today's flow (normalised)", zorder=6)
+
+            # Detect which hours are outside the margin band
+            above_margin = today_norm_curve > upper_band
+            below_margin = today_norm_curve < lower_band
+            anomaly_mask = above_margin | below_margin
+            anomaly_hours = hours_axis[anomaly_mask].tolist()
+
+            # Highlight anomaly hours as red dots on today's curve
+            if anomaly_hours:
+                ax.scatter(
+                    hours_axis[anomaly_mask],
+                    today_norm_curve[anomaly_mask],
+                    color="#ff6b6b", s=80, zorder=8,
+                    label=f"Today anomaly hours ({len(anomaly_hours)})",
+                    edgecolors="#c0392b", linewidths=1.0,
+                )
+                # Draw vertical dashed lines at anomaly hours to make them obvious
+                for h in anomaly_hours:
+                    ax.axvline(h, color="#ff6b6b", lw=0.5, alpha=0.3, linestyle=":")
+        else:
+            ax.text(0.5, 0.5, "No today data in DB\n(fetch a batch from the Live tab first)",
+                    transform=ax.transAxes, ha="center", va="center",
+                    color="#555d6e", fontsize=11)
+
+        ax.set_xlim(-0.5, 23.5)
+        ax.set_xticks(range(0, 24, 1))
+        ax.set_xticklabels([f"{h:02d}" for h in range(24)], fontsize=7.5)
+        ax.set_xlabel("Hour of Day (00 = midnight, 12 = noon)", fontsize=9)
+        ax.set_ylabel("Normalised Flow Rate  (0 = daily min, 1 = daily max)", fontsize=9)
+        ax.set_ylim(-0.05, 1.15)
+
+        n_days_used = len(all_curves)
+        title_str = (
+            f"2-Month Baseline vs Today  |  {n_days_used} reference days (Jan–Feb {pattern_year})"
+        )
+        if today_norm_curve is not None and anomaly_hours:
+            title_str += f"\n⚠️  Today is OUTSIDE the normal margin at hours: {anomaly_hours}"
+        elif today_norm_curve is not None:
+            title_str += "\n✅  Today stays within the normal margin — no anomaly"
+        ax.set_title(title_str, fontsize=10)
+
+        ax.legend(fontsize=8, loc="upper right", ncol=2, framealpha=0.85)
+        ax.grid(True, alpha=0.3)
+        ax.spines[["top", "right"]].set_visible(False)
+        fig.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+        # ── Anomaly summary below the chart ──────────────────────────
+        if today_norm_curve is not None:
+            if anomaly_hours:
+                st.markdown(
+                    f"<div style='background:#1e1215;border:1px solid #ff6b6b;"
+                    f"border-radius:8px;padding:12px 16px;margin-top:8px'>"
+                    f"<span style='color:#ff6b6b;font-weight:600;font-size:.85rem'>"
+                    f"⚠️  Today has {len(anomaly_hours)} anomaly hour(s) outside the 2-month margin</span>"
+                    f"<br><span style='color:#8b949e;font-size:.78rem'>"
+                    f"Anomaly hours: {', '.join(f'{h:02d}:00' for h in anomaly_hours)}<br>"
+                    f"What this means: at these hours, today's flow pattern is "
+                    f"significantly different from what was typical in Jan–Feb. "
+                    f"Could be a supply disruption, leak, or demand surge.</span></div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    "<div style='background:#0d1a12;border:1px solid #3fb950;"
+                    "border-radius:8px;padding:12px 16px;margin-top:8px'>"
+                    "<span style='color:#3fb950;font-weight:600;font-size:.85rem'>"
+                    "✅  Today's flow pattern is within the normal 2-month margin — no anomaly detected</span>"
+                    "<br><span style='color:#8b949e;font-size:.78rem'>"
+                    "Today stays inside the 25th–75th percentile band for all 24 hours.</span></div>",
+                    unsafe_allow_html=True,
+                )
+
+        # ── How to customise the margin (beginner tip) ────────────────
+        with st.expander("💡 How to make the margin wider or stricter"):
+            st.markdown("""
+**Currently using: 25th–75th percentile (IQR band)**
+
+This means: the "normal zone" covers the middle 50% of your historical days.
+An hour is flagged as anomaly if it's rarer than 1 in 4 days.
+
+**To make the margin WIDER (fewer false alarms):**
+Change `25` → `10` and `75` → `90` in the code.
+This would cover the middle 80% of days, so only very extreme deviations are flagged.
+
+**To make the margin STRICTER (catch more subtle issues):**
+Change `25` → `35` and `75` → `65` — this narrows the band and flags more hours.
+
+**What is "normalised" flow?**
+Each day is scaled so its minimum = 0 and maximum = 1.
+This lets us compare the *shape* of the day regardless of total volume.
+If one Jan day had twice the total flow of another, they can still have the same shape.
+""")
+    else:
+        st.info("Not enough historical curves — fetch Jan+Feb data first using the button above.")
+
     # ═════════════════════════════════════════════════════════════════════════════
 # TAB 7 — QoS TREND  ← reads worker DB; zero existing code modified
 # ═════════════════════════════════════════════════════════════════════════════
