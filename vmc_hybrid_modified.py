@@ -2134,8 +2134,8 @@ with tab_pattern:
         fig, ax = plt.subplots(figsize=(13, 5))
         ax.fill_between(hours_axis, lower_band, upper_band, alpha=0.22, color="#4a90d9",
                 label=f"Normal margin (±10% of supply-hour avg = ±{margin_10pct:.3f})")
-        ax.plot(hours_axis, upper_band, color="#4a90d9", lw=0.9, linestyle="--", alpha=0.7, label="Upper margin (75th %ile)")
-        ax.plot(hours_axis, lower_band, color="#4a90d9", lw=0.9, linestyle="--", alpha=0.7, label="Lower margin (25th %ile)")
+        ax.plot(hours_axis, upper_band, color="#4a90d9", lw=0.9, linestyle="--", alpha=0.7, label=f"Upper margin (+10% of supply avg)")
+        ax.plot(hours_axis, lower_band, color="#4a90d9", lw=0.9, linestyle="--", alpha=0.7, label=f"Lower margin (−10% of supply avg)")
         ax.plot(hours_axis, median_curve, color="#e74c3c", lw=2.5,
                 label=f"Median (typical day) — {len(all_curves)} days", zorder=5)
 
