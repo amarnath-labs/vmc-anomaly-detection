@@ -118,14 +118,7 @@ METER_MAP = {
         "aliases": ["MJP-4684", "FMA", "DLP2.AI1", "VMC.DLP2.MJP.MJP-4684"],
         "flow_rate_max": 100,                        # real max ~35 m³/hr from screenshot
     },
-    "MJP-4685": {
-        "dlp": "4685",
-        "flowmeter": "B",
-        "channel": "BI1",
-        "tag_match": "FMB.BI1",                     # full dot-path seen in dashboard
-        "aliases": ["MJP-4685", "DLP2.BI1", "VMC.DLP2.MJP.MJP-4685"],
-        "flow_rate_max": 4000,                       # bidirectional, spikes to ~3000 m³/hr
-    },
+    
     "MJP-4738": {
     "dlp": "4738",
     "flowmeter": "B",
@@ -141,6 +134,14 @@ METER_MAP = {
     "channel": "AI1",           # AI1 confirmed from dashboard tag
     "tag_match": "KRL-6136",    # specific enough to avoid false matches
     "aliases": ["KRL-6136", "VMC.DLP1.KRL.KRL-6136.Tags.FMA.AI1", "FMA.AI1"],
+},
+"KRL-5528": {
+    "dlp": "5528",
+    "flowmeter": "A",
+    "channel": "AI2",
+    "tag_match": "KRL-5528",
+    "aliases": ["KRL-5528", "VMC.DLP1.KRL.KRL-5528.Tags.FMA", "FMA.AI2"],
+    "flow_rate_max": 150,
 },
 }
 
@@ -678,7 +679,10 @@ def fetch_real_data(hours: int = 24) -> list[dict]:
             try:
                 ts   = pd.to_datetime(row["timestamp"])
                 flow = float(row["value"])
-                if abs(flow) > FLOW_RATE_MAX:
+                                # Reject cumulative volume fields — they grow monotonically
+                                # Real flow rate for KRL-5528 max is ~100 m³/hr
+                meter_max = meter_cfg.get("flow_rate_max", FLOW_RATE_MAX)
+                if abs(flow) > meter_max:
                     continue
                 all_records.append({
                     "timestamp": ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
@@ -1149,11 +1153,26 @@ def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     curve = s.values
 
     # NEW: skip normalization — return raw hourly avg in m³/hr
-    # Only reject completely dead days (meter off or data missing)
-    if curve.max() < 1.0:   # less than 1 m³/hr all day = no real data
+# Reject dead days
+    if curve.max() < 1.0:
         return None
 
-    return curve  # raw, not normalized
+    # Reject cumulative-volume contamination —
+    # a real flow rate curve never rises monotonically all day
+    # Check if the curve is strictly increasing for more than 8 consecutive hours
+    diffs = np.diff(curve)
+    rising_streak = 0
+    max_streak = 0
+    for d in diffs:
+        if d > 0.5:
+            rising_streak += 1
+            max_streak = max(max_streak, rising_streak)
+        else:
+            rising_streak = 0
+    if max_streak >= 8:
+        return None   # monotonically rising = cumulative volume, not flow rate
+
+    return curve
 
 def curve_distance(a: np.ndarray, b: np.ndarray) -> float:
     """
@@ -2444,168 +2463,12 @@ if raw_curves_9 and len(raw_curves_9) >= 1:
                         raw_curves_9[date_str] = curve
             st.info(f"ℹ️ Only {len(raw_curves_9)} API reference days — "
                     f"supplemented with last 7 days from DB.")
-    # ① Jan + Feb all-day overlay
-    st.markdown(
-        "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:16px 0 6px'>"
-        "① Jan + Feb — all days overlaid with Benchmark Median</div>",
-        unsafe_allow_html=True)
+   
+  
 
-    jan_curves, feb_curves = [], []
-    for date_str, curve in raw_curves_9.items():
-        month = int(date_str[5:7])
-        if month == 1: jan_curves.append(curve)
-        elif month == 2: feb_curves.append(curve)
+    
 
-    all_day_curves = jan_curves + feb_curves
-    n_total        = len(all_day_curves)
-
-    if n_total == 0:
-        st.warning("⚠️ No valid daily curves to plot — try lowering the min-hours threshold.")
-    else:
-        fig, ax = plt.subplots(figsize=(13, 5))
-        for c in all_day_curves:
-            ax.plot(hours_axis, c, color="#4a90d9", lw=0.6, alpha=0.20)
-        
-        if n_total == 1:
-            benchmark_median = all_day_curves[0]
-        else:
-            # Per-hour median ignoring zero-supply days
-            all_day_matrix = np.array(all_day_curves)  # shape: (n_days, 24)
-            hourly_medians = []
-            for h in range(24):
-                col = all_day_matrix[:, h]
-                active = col[col > 5]        # ignore hours with no supply
-                if len(active) >= 2:
-                    hourly_medians.append(float(np.median(active)))
-                elif len(active) == 1:
-                    hourly_medians.append(float(active[0]))
-                else:
-                    hourly_medians.append(0.0)
-            benchmark_median = np.array(hourly_medians)
-        
-        ax.plot(hours_axis, benchmark_median, color="#e74c3c", lw=2.8,
-                label=f"Benchmark Median — {n_total} days (Jan+Feb {pattern_year})", zorder=5)
-        ax.set_xlabel("Hour of Day", fontsize=9)
-        ax.set_ylabel("Flow Rate (m³/hr)", fontsize=9)
-        ax.set_title(
-            f"Multi-Day Overlay: Flow Pattern (Jan–Feb {pattern_year})\n"
-            f"{n_total} Days Overlaid with Benchmark Median  "
-            f"[Jan: {len(jan_curves)} days | Feb: {len(feb_curves)} days]", fontsize=10)
-        ax.set_xticks(range(0, 24, 2))
-        ax.legend(fontsize=9, loc="upper right")
-        ax.grid(True, alpha=0.25); ax.spines[["top","right"]].set_visible(False)
-        fig.tight_layout(); st.pyplot(fig); plt.close(fig)
-
-    # ② K-Means cluster centroids
-    st.markdown(
-        "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:20px 0 6px'>"
-        "② All discovered daily shapes — benchmark highlighted</div>",
-        unsafe_allow_html=True)
-
-    cluster_sizes = np.bincount(curves_df["cluster"].values.astype(int), minlength=len(centroids))
-    fig, ax = plt.subplots(figsize=(13, 4))
-    palette = ["#555d6e"] * len(centroids)
-    palette[modal_idx] = "#ffa94d"
-    for i, centroid in enumerate(centroids):
-        n   = cluster_sizes[i]
-        lw  = 2.5 if i == modal_idx else 0.9
-        alpha = 1.0 if i == modal_idx else 0.55
-        label = (f"Cluster {i} — {n} days  ← BENCHMARK (most frequent)"
-                 if i == modal_idx else f"Cluster {i} — {n} days")
-        ax.plot(hours_axis, centroid, color=palette[i], lw=lw, alpha=alpha, label=label)
-    ax.set_xlabel("Hour of day"); ax.set_ylabel("Normalised flow")
-    ax.set_title(f"K-Means cluster centroids (k={pattern_k}) — modal = benchmark")
-    ax.set_xticks(range(0, 24, 2)); ax.legend(fontsize=7.5, ncol=2)
-    ax.grid(True, alpha=0.3); ax.spines[["top","right"]].set_visible(False)
-    fig.tight_layout(); st.pyplot(fig); plt.close(fig)
-
-    # ③ Daily similarity bar chart
-    st.markdown(
-        "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:20px 0 6px'>"
-        f"③ Daily similarity to benchmark  (threshold = {sim_threshold}%)</div>",
-        unsafe_allow_html=True)
-
-    curves_df_sorted = curves_df.sort_values("date").reset_index(drop=True)
-    bar_colors = ["#3fb950" if s >= sim_threshold else "#ff6b6b"
-                  for s in curves_df_sorted["similarity"]]
-    fig, ax = plt.subplots(figsize=(13, 4))
-    ax.bar(range(len(curves_df_sorted)), curves_df_sorted["similarity"],
-           color=bar_colors, width=0.75, zorder=3)
-    ax.axhline(sim_threshold, color="#ffa94d", lw=1.2,
-               linestyle="--", label=f"Threshold {sim_threshold}%")
-    ax.axhline(100, color="#555d6e", lw=0.5, linestyle=":")
-    ax.set_xticks(range(len(curves_df_sorted)))
-    ax.set_xticklabels([d[5:] for d in curves_df_sorted["date"]], rotation=60, fontsize=6.5)
-    ax.set_ylabel("Similarity to benchmark (%)")
-    ax.set_title("Daily pattern similarity — green ≥ threshold, red = deviant")
-    ax.set_ylim(0, 105); ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3, axis="y"); ax.spines[["top","right"]].set_visible(False)
-    fig.tight_layout(); st.pyplot(fig); plt.close(fig)
-
-    # ④ Best vs worst matching days overlay
-    st.markdown(
-        "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:20px 0 6px'>"
-        "④ Best-match vs worst-match days vs benchmark</div>",
-        unsafe_allow_html=True)
-
-    ranked = curves_df_sorted.sort_values("similarity", ascending=False)
-    top5   = ranked.head(5)["date"].tolist()
-    bot5   = ranked.tail(5)["date"].tolist()
-
-    fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), sharey=True)
-    for date_str in top5:
-        if date_str in all_curves:
-            axes[0].plot(hours_axis, all_curves[date_str], color="#3fb950", lw=1.0, alpha=0.65,
-                         label=f"{date_str[5:]} ({curves_df_sorted[curves_df_sorted['date']==date_str]['similarity'].values[0]:.0f}%)")
-    axes[0].plot(hours_axis, bench, color="#ffa94d", lw=2.2, linestyle="--", label="Benchmark")
-    axes[0].set_title("Top 5 closest days to benchmark")
-    axes[0].set_xlabel("Hour"); axes[0].set_ylabel("Normalised flow")
-    axes[0].legend(fontsize=7.5); axes[0].grid(True, alpha=0.3)
-    axes[0].set_xticks(range(0, 24, 2)); axes[0].spines[["top","right"]].set_visible(False)
-
-    for date_str in bot5:
-        if date_str in all_curves:
-            axes[1].plot(hours_axis, all_curves[date_str], color="#ff6b6b", lw=1.0, alpha=0.65,
-                         label=f"{date_str[5:]} ({curves_df_sorted[curves_df_sorted['date']==date_str]['similarity'].values[0]:.0f}%)")
-    axes[1].plot(hours_axis, bench, color="#ffa94d", lw=2.2, linestyle="--", label="Benchmark")
-    axes[1].set_title("Bottom 5 most deviant days")
-    axes[1].set_xlabel("Hour")
-    axes[1].legend(fontsize=7.5); axes[1].grid(True, alpha=0.3)
-    axes[1].set_xticks(range(0, 24, 2)); axes[1].spines[["top","right"]].set_visible(False)
-    fig.tight_layout(); st.pyplot(fig); plt.close(fig)
-
-    # ⑤ Summary metrics
-    st.markdown(
-        "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:20px 0 6px'>"
-        "⑤ Summary</div>", unsafe_allow_html=True)
-
-    n_match   = (curves_df_sorted["similarity"] >= sim_threshold).sum()
-    n_deviant = len(curves_df_sorted) - n_match
-    avg_sim   = curves_df_sorted["similarity"].mean()
-    best_day  = curves_df_sorted.loc[curves_df_sorted["similarity"].idxmax(), "date"]
-    worst_day = curves_df_sorted.loc[curves_df_sorted["similarity"].idxmin(), "date"]
-
-    mc1, mc2, mc3, mc4, mc5 = st.columns(5)
-    for col, label, val in [
-        (mc1, "Total days",     f"{len(curves_df_sorted)}"),
-        (mc2, "Match ✅",       f"{n_match}"),
-        (mc3, "Deviant ❌",     f"{n_deviant}"),
-        (mc4, "Avg similarity", f"{avg_sim:.1f}%"),
-        (mc5, "Best match",     best_day[5:]),
-    ]:
-        col.markdown(
-            f"<div class='metric-card'>"
-            f"<div class='metric-label'>{label}</div>"
-            f"<div class='metric-value' style='font-size:1.3rem'>{val}</div>"
-            f"</div>", unsafe_allow_html=True)
-
-    st.markdown("<div style='font-size:.85rem;color:#c8cde0;margin:16px 0 6px'>Full similarity table</div>", unsafe_allow_html=True)
-    st.dataframe(
-        curves_df_sorted[["date","cluster","similarity","distance","is_benchmark_cluster"]].reset_index(drop=True),
-        width="stretch", height=340)
-    st.download_button("⬇️ Download similarity CSV",
-                       data=curves_df_sorted.to_csv(index=False).encode(),
-                       file_name=f"vmc_pattern_similarity_{pattern_year}.csv", mime="text/csv")
+    
 
     # ⑥ Today vs Benchmark
     st.markdown(
@@ -2615,56 +2478,44 @@ if raw_curves_9 and len(raw_curves_9) >= 1:
 
 def db_load_recent_day(min_readings: int = 20) -> tuple[pd.DataFrame, str]:
     """
-    Returns today's readings if we have at least min_readings.
-    Falls back to yesterday ONLY — never merges multiple days.
-    Timestamps are NOT shifted — kept as-is so hour_frac is accurate.
+    Loads the last 24 hours of data as a single continuous block.
+    Converts timestamps to hour_frac (0-24) relative to 24h ago,
+    so the full supply cycle is always visible regardless of midnight boundary.
     """
-    meter_id = st.session_state.get("object_name", "MJP-5917")
-    con = sqlite3.connect(DB_PATH)
+    meter_id  = st.session_state.get("object_name", "MJP-5917")
+    now       = datetime.now()
+    since_24h = now - timedelta(hours=24)
 
-    for days_ago in range(2):   # only try today (0) and yesterday (1)
-        day_start = (datetime.now() - timedelta(days=days_ago)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-        day_end = day_start + timedelta(days=1)
-
-        df_day = pd.read_sql(
-            """
-            SELECT meter_id, timestamp, flow_rate, is_anomaly
-            FROM readings
-            WHERE timestamp >= ? AND timestamp < ? AND meter_id = ?
-            ORDER BY timestamp
-            """,
-            con,
-            params=(day_start.isoformat(), day_end.isoformat(), meter_id),
-        )
-
-        if df_day.empty or len(df_day) < min_readings:
-            continue
-
-        df_day["timestamp"] = pd.to_datetime(df_day["timestamp"], format="mixed")
-        df_day = df_day.rename(columns={"flow_rate": "flow_rate_m3hr"})
-
-        label = "Today" if days_ago == 0 else "Yesterday (today has too few readings)"
-        con.close()
-        return df_day.sort_values("timestamp").reset_index(drop=True), label
-
+    con   = sqlite3.connect(DB_PATH)
+    df_24 = pd.read_sql(
+        """
+        SELECT meter_id, timestamp, flow_rate, is_anomaly
+        FROM readings
+        WHERE timestamp >= ? AND meter_id = ?
+        ORDER BY timestamp
+        """,
+        con,
+        params=(since_24h.isoformat(), meter_id),
+    )
     con.close()
 
-    # Last resort — return whatever today has, even if sparse
-    day_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    df_today = pd.read_sql(
-        "SELECT meter_id, timestamp, flow_rate, is_anomaly FROM readings "
-        "WHERE timestamp >= ? AND meter_id = ? ORDER BY timestamp",
-        sqlite3.connect(DB_PATH),
-        params=(day_start.isoformat(), meter_id),
-    )
-    if not df_today.empty:
-        df_today["timestamp"] = pd.to_datetime(df_today["timestamp"], format="mixed")
-        df_today = df_today.rename(columns={"flow_rate": "flow_rate_m3hr"})
-        return df_today.sort_values("timestamp").reset_index(drop=True), "Today (sparse)"
+    if df_24.empty:
+        return pd.DataFrame(), "No data"
 
-    return pd.DataFrame(), "No data"
+    df_24["timestamp"]    = pd.to_datetime(df_24["timestamp"], format="mixed")
+    df_24                 = df_24.rename(columns={"flow_rate": "flow_rate_m3hr"})
+    df_24                 = df_24.sort_values("timestamp").reset_index(drop=True)
+
+    # hour_frac = actual clock hour (0-23) so it aligns with the 24h median curve
+    df_24["hour"]      = df_24["timestamp"].dt.hour
+    df_24["hour_frac"] = (
+        df_24["timestamp"].dt.hour
+        + df_24["timestamp"].dt.minute / 60
+        + df_24["timestamp"].dt.second / 3600
+    )
+
+    label = f"Last 24h ({since_24h.strftime('%d %b %H:%M')} → now, {len(df_24):,} readings)"
+    return df_24, label
 
 
 bench_box = st.session_state.get("benchmark_windows", None)
@@ -2816,131 +2667,7 @@ else:
         ax.set_xlabel("Hour of Day"); ax.set_ylabel("Date (MM-DD)")
         fig.tight_layout(); st.pyplot(fig); plt.close(fig)
 
-    # ⑧ Executive Dashboard
-    st.markdown(
-        "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:20px 0 6px'>"
-        "⑧ Executive Dashboard (matches PDF Figure 6 layout)</div>",
-        unsafe_allow_html=True)
-
-    if curves_df is not None and not curves_df.empty:
-        n_match_ex   = (curves_df["similarity"] >= sim_threshold).sum()
-        n_deviant_ex = len(curves_df) - n_match_ex
-        avg_sim_ex   = curves_df["similarity"].mean()
-        best_day_ex  = curves_df.loc[curves_df["similarity"].idxmax(), "date"]
-        worst_day_ex = curves_df.loc[curves_df["similarity"].idxmin(), "date"]
-
-        ec1, ec2, ec3, ec4, ec5 = st.columns(5)
-        for col_, label, val in [
-            (ec1, "Total Days",     f"{len(curves_df)}"),
-            (ec2, "Match ✅",       f"{n_match_ex}"),
-            (ec3, "Deviant ❌",     f"{n_deviant_ex}"),
-            (ec4, "Avg Similarity", f"{avg_sim_ex:.1f}%"),
-            (ec5, "Best Match",     best_day_ex[5:]),
-        ]:
-            col_.markdown(
-                f"<div class='metric-card'>"
-                f"<div class='metric-label'>{label}</div>"
-                f"<div class='metric-value' style='font-size:1.3rem'>{val}</div>"
-                f"</div>", unsafe_allow_html=True)
-
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-
-        fig, axes = plt.subplots(2, 2, figsize=(13, 9), facecolor="#1a1d27")
-        for axi in axes.flat:
-            axi.set_facecolor("#1a1d27"); axi.spines[["top","right"]].set_visible(False)
-
-        ax1 = axes[0, 0]
-        ax1.hist(curves_df["similarity"], bins=20, color="#4a90d9", alpha=0.75, edgecolor="#0f1117")
-        ax1.axvline(sim_threshold, color="#ffa94d", lw=1.2, linestyle="--", label=f"Threshold {sim_threshold}%")
-        ax1.axvline(avg_sim_ex, color="#e74c3c", lw=1.0, linestyle=":", label=f"Avg {avg_sim_ex:.1f}%")
-        ax1.set_xlabel("Similarity (%)"); ax1.set_ylabel("Number of Days")
-        ax1.set_title("Similarity Score Distribution")
-        ax1.legend(fontsize=7.5); ax1.grid(True, alpha=0.25)
-
-        ax2 = axes[0, 1]
-        if bench_box:
-            type_counts = {"Start Time": 0, "End Time": 0, "Duration": 0, "Peak Flow": 0, "Avg Flow": 0}
-            pat_cp = pat_df.copy(); pat_cp["date_"] = pat_cp["timestamp"].dt.date
-            for date_, grp in pat_cp.groupby("date_"):
-                wins_ = detect_supply_windows_df(grp)
-                _, anoms_, _ = score_day_vs_benchmark(wins_, bench_box,
-                                                      time_tol_min=time_tol_min,
-                                                      flow_tol=flow_tol_pct / 100)
-                for a in anoms_:
-                    if "Start time"  in a: type_counts["Start Time"] += 1
-                    elif "End time"  in a: type_counts["End Time"]   += 1
-                    elif "Duration"  in a: type_counts["Duration"]   += 1
-                    elif "Peak"      in a: type_counts["Peak Flow"]  += 1
-                    elif "Avg"       in a: type_counts["Avg Flow"]   += 1
-            bar_clrs2 = ["#ff6b6b","#ffa94d","#ffd700","#4a90d9","#3fb950"]
-            ax2.barh(list(type_counts.keys()), list(type_counts.values()),
-                     color=bar_clrs2, height=0.55, zorder=3)
-            for i, (k, v) in enumerate(type_counts.items()):
-                if v > 0: ax2.text(v + 0.1, i, str(v), va="center", fontsize=9)
-            ax2.set_xlabel("Count"); ax2.set_title("Anomaly Types Breakdown")
-            ax2.grid(True, alpha=0.25, axis="x")
-
-        ax3 = axes[1, 0]
-        if bench_box:
-            pat_cp2 = pat_df.copy(); pat_cp2["date_"] = pat_cp2["timestamp"].dt.date
-            day_starts_sc = []; day_ends_sc = []
-            for date_, grp in sorted(pat_cp2.groupby("date_")):
-                wins_ = detect_supply_windows_df(grp)
-                if wins_:
-                    best_ = min(wins_, key=lambda w: abs(w["start_hour_frac"] - bench_box["start_hour"]))
-                    day_starts_sc.append(best_["start_hour_frac"])
-                    day_ends_sc.append(best_["end_hour_frac"])
-            x_sc = range(len(day_starts_sc))
-            ax3.scatter(x_sc, day_starts_sc, color="#4a90d9", s=20, label="Supply Start", zorder=5)
-            ax3.scatter(x_sc, day_ends_sc,   color="#3fb950", s=20, label="Supply End",   zorder=5)
-            ax3.axhline(bench_box["start_hour"], color="#4a90d9", lw=0.9, linestyle="--",
-                        alpha=0.7, label=f"Bm start ({bm_start_str})")
-            ax3.axhline(bench_box["end_hour"],   color="#3fb950", lw=0.9, linestyle="--",
-                        alpha=0.7, label=f"Bm end ({bm_end_str})")
-            ax3.set_xlabel("Day index"); ax3.set_ylabel("Hour of Day")
-            ax3.set_title("Supply Start & End Time Consistency\n(Dashed = median)")
-            ax3.legend(fontsize=7, ncol=2); ax3.grid(True, alpha=0.2)
-
-        ax4 = axes[1, 1]; ax4.axis("off")
-        summary_text = (
-            f"WATER DISTRIBUTION QUALITY SUMMARY\n"
-            f"{'='*40}\n\n"
-            f"Data Period: Jan 1 – Feb 28, {pattern_year}\n"
-            f"Total Days Analysed: {len(curves_df)}\n\n"
-            f"PATTERN STATISTICS:\n"
-            f"  Benchmark match (≥{sim_threshold}%):  "
-            f"{n_match_ex}/{len(curves_df)} ({n_match_ex*100//max(len(curves_df),1)}%)\n"
-            f"  Deviant days (<{sim_threshold}%):       "
-            f"{n_deviant_ex}/{len(curves_df)} ({n_deviant_ex*100//max(len(curves_df),1)}%)\n"
-            f"  Average similarity:    {avg_sim_ex:.1f}%\n"
-            f"  Best matching day:     {best_day_ex[5:]}\n"
-            f"  Worst matching day:    {worst_day_ex[5:]}\n\n"
-        )
-        if bench_box:
-            summary_text += (
-                f"BENCHMARK PROFILE:\n"
-                f"  Supply start:  ~{bm_start_str}\n"
-                f"  Supply end:    ~{bm_end_str}\n"
-                f"  Duration:      ~{bench_box['duration']:.0f} min\n"
-                f"  Peak flow:     {bench_box['peak']:.1f} m³/hr\n"
-                f"  Avg flow:      {bench_box['avg']:.1f} m³/hr\n"
-                f"  Sample size:   {bench_box['samples']} windows\n\n"
-            )
-        if not today_df.empty:
-            summary_text += (
-                f"TODAY vs BENCHMARK:\n"
-                f"  QoS Score:      {today_qos:.1f}%\n"
-                f"  Status:         {status_str}\n"
-                f"  Supply windows: {len(today_windows)}\n"
-                f"  Anomalies:      {len(today_anomalies)}\n"
-            )
-        ax4.text(0.05, 0.97, summary_text, transform=ax4.transAxes,
-                 fontsize=7.5, va="top", ha="left", color="#c8cde0",
-                 fontfamily="monospace",
-                 bbox=dict(boxstyle="round,pad=0.5", facecolor="#1e2130",
-                           edgecolor="#2a2d3a", alpha=0.9))
-        fig.tight_layout(pad=1.5); st.pyplot(fig); plt.close(fig)
-
+    
     # ⑨ Median Curve + Margin Band — Today vs 2-Month Baseline
     st.markdown(
         "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:28px 0 6px'>"
