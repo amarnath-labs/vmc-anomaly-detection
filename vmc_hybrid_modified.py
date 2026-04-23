@@ -553,7 +553,11 @@ def _parse_batch_response(data, fallback_ts: datetime) -> list[dict]:
         for row in rows:
             try:
                 # FIX: abs() — bidirectional meter produces negative values
+                # With:
                 flow = float(row.get("value") or 0)
+                if flow < -5:   # genuine reverse flow, flag but keep signed
+                    pass        # anomaly tagging handles it downstream
+                flow = flow     # do NOT abs() here
                 
             except (TypeError, ValueError):
                 continue
@@ -2895,8 +2899,10 @@ else:
 
             median_curve = np.median(all_curve_matrix, axis=0)
 
-            daily_avg    = np.mean(all_curve_matrix)
-            margin_10pct = 0.20 * daily_avg
+            # Use median of non-zero hours as the supply-hour average
+            non_zero_mask = median_curve > 5
+            supply_avg = np.mean(all_curve_matrix[:, non_zero_mask]) if non_zero_mask.any() else np.mean(all_curve_matrix)
+            margin_10pct = 0.20 * supply_avg
             lower_band   = np.clip(median_curve - margin_10pct, 0, None)
             upper_band   = median_curve + margin_10pct
 
@@ -2926,7 +2932,7 @@ else:
             anomaly_hours = []
             if today_norm_curve is not None:
                 ax.plot(hours_axis, today_norm_curve, color="#3fb950", lw=2.0,
-                        label="Today's flow (normalised)", zorder=6)
+                        label="Today's flow (m³/hr)", zorder=6)
                 above_margin  = today_norm_curve > upper_band
                 below_margin  = today_norm_curve < lower_band
                 anomaly_mask  = above_margin | below_margin
@@ -2950,7 +2956,11 @@ else:
             ax.set_xticklabels([f"{h:02d}" for h in range(x_max + 1)], fontsize=7.5)
             ax.set_xlabel("Hour of Day (00 = midnight, 12 = noon)", fontsize=9)
             ax.set_ylabel("Flow Rate (m³/hr)", fontsize=9)
-            ax.set_ylim(-0.05, 1.15)
+            y_max = max(
+                float(np.nanmax(all_curve_matrix)) if len(all_curve_matrix) > 0 else 1.0,
+                float(np.nanmax(today_norm_curve)) if today_norm_curve is not None else 0.0,
+            ) * 1.15
+            ax.set_ylim(-0.5, y_max)
 
             title_str = f"2-Month Baseline vs Today  |  {len(all_curves)} reference days (Jan–Feb {pattern_year})"
             if today_norm_curve is not None and anomaly_hours:
