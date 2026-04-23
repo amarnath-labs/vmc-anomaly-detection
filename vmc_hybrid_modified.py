@@ -1134,7 +1134,7 @@ def fetch_two_months(year: int = 2025) -> pd.DataFrame:
 def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     day_df = day_df.copy()
     day_df["hour"] = day_df["timestamp"].dt.hour
-    hourly = day_df.groupby("hour")["flow_rate_m3hr"].mean()
+    hourly = day_df.groupby("hour")["flow_rate_m3hr"].median()  # ← median now
 
     curve = hourly.reindex(range(24), fill_value=np.nan).values.astype(float)
 
@@ -1217,8 +1217,11 @@ def find_benchmark_pattern(df: pd.DataFrame, n_clusters: int = 6):
 
     cluster_sizes = np.bincount(labels)
     modal_idx     = int(np.argmax(cluster_sizes))
-    benchmark     = centroids[modal_idx]
 
+    # FIX: use median of cluster members instead of K-Means centroid (mean)
+    modal_mask = labels == modal_idx
+    modal_curves = X[modal_mask]           # shape: (n_days_in_cluster, 24)
+    benchmark = np.median(modal_curves, axis=0)  # median per hour across those days
     rows = []
     for i, date_str in enumerate(valid_dates):
         dist = curve_distance(all_curves[date_str], benchmark)
@@ -1236,33 +1239,56 @@ def find_benchmark_pattern(df: pd.DataFrame, n_clusters: int = 6):
 
 # ── BOX-METHOD HELPERS (supply-window matching, PDF §2.2–2.4) ─────────────────
 
-def detect_supply_windows_df(day_df, threshold=5.0, min_duration_min=5):
-    """Detect active supply windows from one day's flow. Returns list of window dicts."""
+def detect_supply_windows_df(day_df, threshold=5.0, 
+                              min_duration_min=5,
+                              min_gap_min=30):   # ← new parameter
+    """
+    Don't merge windows separated by more than min_gap_min of near-zero flow.
+    """
     df = day_df.copy().sort_values("timestamp").reset_index(drop=True)
     col = "flow_rate_m3hr" if "flow_rate_m3hr" in df.columns else "flow_rate"
-    windows = []; in_window = False; start_idx = None
+    windows = []
+    in_window = False
+    start_idx = None
+    zero_start = None   # track when flow dropped below threshold
 
     for i, row in df.iterrows():
         if row[col] >= threshold and not in_window:
-            in_window = True; start_idx = i
+            # Check if gap since last window was large enough
+            in_window = True
+            start_idx = i
+            zero_start = None
         elif row[col] < threshold and in_window:
-            in_window = False
-            wdf = df.iloc[start_idx:i]
-            dur = (wdf["timestamp"].iloc[-1] - wdf["timestamp"].iloc[0]).total_seconds() / 60
-            if dur >= min_duration_min:
-                windows.append({
-                    "start": wdf["timestamp"].iloc[0],
-                    "end":   wdf["timestamp"].iloc[-1],
-                    "duration": dur,
-                    "peak":  wdf[col].max(),
-                    "avg":   wdf[col].mean(),
-                    "start_hour_frac": wdf["timestamp"].iloc[0].hour + wdf["timestamp"].iloc[0].minute / 60,
-                    "end_hour_frac":   wdf["timestamp"].iloc[-1].hour + wdf["timestamp"].iloc[-1].minute / 60,
-                })
+            if zero_start is None:
+                zero_start = row["timestamp"]
+            # Only close window if gap exceeds min_gap_min
+            gap_min = (row["timestamp"] - zero_start).total_seconds() / 60
+            if gap_min >= min_gap_min:
+                in_window = False
+                wdf = df.iloc[start_idx:i]
+                dur = (wdf["timestamp"].iloc[-1] - 
+                       wdf["timestamp"].iloc[0]).total_seconds() / 60
+                if dur >= min_duration_min:
+                    windows.append({
+                        "start": wdf["timestamp"].iloc[0],
+                        "end":   wdf["timestamp"].iloc[-1],
+                        "duration": dur,
+                        "peak":  wdf[col].max(),
+                        "avg":   wdf[col].mean(),
+                        "start_hour_frac": (wdf["timestamp"].iloc[0].hour + 
+                                           wdf["timestamp"].iloc[0].minute / 60),
+                        "end_hour_frac":   (wdf["timestamp"].iloc[-1].hour + 
+                                           wdf["timestamp"].iloc[-1].minute / 60),
+                    })
+                zero_start = None
+        elif row[col] >= threshold and in_window:
+            zero_start = None  # reset gap timer if flow resumes
 
+    # Handle still-open window at end of day
     if in_window and start_idx is not None:
         wdf = df.iloc[start_idx:]
-        dur = (wdf["timestamp"].iloc[-1] - wdf["timestamp"].iloc[0]).total_seconds() / 60
+        dur = (wdf["timestamp"].iloc[-1] - 
+               wdf["timestamp"].iloc[0]).total_seconds() / 60
         if dur >= min_duration_min:
             windows.append({
                 "start": wdf["timestamp"].iloc[0],
@@ -1270,11 +1296,12 @@ def detect_supply_windows_df(day_df, threshold=5.0, min_duration_min=5):
                 "duration": dur,
                 "peak":  wdf[col].max(),
                 "avg":   wdf[col].mean(),
-                "start_hour_frac": wdf["timestamp"].iloc[0].hour + wdf["timestamp"].iloc[0].minute / 60,
-                "end_hour_frac":   wdf["timestamp"].iloc[-1].hour + wdf["timestamp"].iloc[-1].minute / 60,
+                "start_hour_frac": (wdf["timestamp"].iloc[0].hour + 
+                                   wdf["timestamp"].iloc[0].minute / 60),
+                "end_hour_frac":   (wdf["timestamp"].iloc[-1].hour + 
+                                   wdf["timestamp"].iloc[-1].minute / 60),
             })
     return windows
-
 
 def build_benchmark_from_windows(all_windows, n_clusters=6):
     """
@@ -1381,9 +1408,16 @@ def find_benchmark_pattern_kmeans(df, n_clusters=6):
     n_clusters = max(2, n_clusters)
     X  = np.array([all_curves_km[d] for d in valid_dates])
     km = KMeans(n_clusters=n_clusters, random_state=42, n_init=20)
-    labels = km.fit_predict(X); centroids_km = km.cluster_centers_
-    cluster_sizes = np.bincount(labels); modal_idx_km = int(np.argmax(cluster_sizes))
-    benchmark_curve_km = centroids_km[modal_idx_km]
+    labels    = km.fit_predict(X)
+    centroids = km.cluster_centers_
+
+    cluster_sizes = np.bincount(labels)
+    modal_idx_km  = int(np.argmax(cluster_sizes))
+
+    # FIX: median of cluster members, not K-Means centroid
+    modal_mask_km    = labels == modal_idx_km
+    modal_curves_km  = X[modal_mask_km]
+    benchmark_curve_km = np.median(modal_curves_km, axis=0)
     rows = []
     for i, d in enumerate(valid_dates):
         dist = float(np.sqrt(np.sum((all_curves_km[d] - benchmark_curve_km) ** 2)))
@@ -2896,12 +2930,28 @@ else:
             else:
                 all_curve_matrix = np.array(list(all_curves.values()))
                 baseline_label = "All-days baseline"
+                       # Separate days that had meaningful evening flow vs those that didn't
+            EVENING_HOURS = slice(18, 24)   # hours 18-23
+            evening_flow_per_day = all_curve_matrix[:, EVENING_HOURS].max(axis=1)
+            has_evening_supply = evening_flow_per_day > 5   # threshold same as noise floor
 
+            today_dow = datetime.now().weekday()
+
+            if has_evening_supply.sum() >= 5:
+                # Enough days with evening supply — use only those for median
+                reference_matrix = all_curve_matrix[has_evening_supply]
+                baseline_label = f"Evening-supply days baseline ({has_evening_supply.sum()} days)"
+            else:
+                # Fall back to all days
+                reference_matrix = all_curve_matrix
+                baseline_label = f"All-days baseline ({len(all_curve_matrix)} days)"
+
+            median_curve = np.median(reference_matrix, axis=0)
             median_curve = np.median(all_curve_matrix, axis=0)
 
-            # Use median of non-zero hours as the supply-hour average
             non_zero_mask = median_curve > 5
-            supply_avg = np.mean(all_curve_matrix[:, non_zero_mask]) if non_zero_mask.any() else np.mean(all_curve_matrix)
+            supply_avg = np.mean(reference_matrix[:, non_zero_mask]) if non_zero_mask.any() \
+                        else np.mean(reference_matrix)   # ← reference_matrix not all_curve_matrix
             margin_10pct = 0.20 * supply_avg
             lower_band   = np.clip(median_curve - margin_10pct, 0, None)
             upper_band   = median_curve + margin_10pct
