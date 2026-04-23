@@ -1534,10 +1534,13 @@ with st.sidebar:
             cache_path = _pattern_cache_path()
             if os.path.exists(cache_path):
                 os.remove(cache_path)
-                st.session_state.pattern_df = None
-                st.session_state.benchmark_curve = None
-                st.session_state.all_curves = None
-                st.rerun()
+            st.session_state.pattern_df = None
+            st.session_state.benchmark_curve = None
+            st.session_state.all_curves = None
+            st.session_state.curves_df = None
+            st.session_state.centroids = None
+            st.session_state.modal_idx = None
+            st.rerun()
     st.markdown("<hr style='border-color:#2a2d3a;margin:10px 0'>", unsafe_allow_html=True)
 
     if batch_mode:
@@ -2396,7 +2399,51 @@ with tab_pattern:
                     f"{int((bench_box['end_hour']%1)*60):02d}") if bench_box else "N/A"
 
     hours_axis = np.arange(24)
+# Do NOT reuse session_state.all_curves — those may be normalized 0-1
+# from a previous cached run. Always recompute from pat_df directly.
+raw_curves_9 = {}
+pat_df_9 = pat_df.copy()
+pat_df_9["date"] = pat_df_9["timestamp"].dt.date
 
+for date_, grp in pat_df_9.groupby("date"):
+    grp = grp.copy()
+    grp["hour"] = grp["timestamp"].dt.hour
+    hourly = (grp.groupby("hour")["flow_rate_m3hr"]
+                 .median()
+                 .reindex(range(24), fill_value=np.nan))
+    # Interpolate small gaps only
+    hourly = hourly.interpolate(method="linear", limit=2,
+                                limit_direction="both").fillna(0)
+    curve = hourly.values.astype(float)
+    # Only include days with meaningful flow
+    if curve.max() >= 1.0:
+        raw_curves_9[str(date_)] = curve
+
+st.caption(f"Section ⑨ using {len(raw_curves_9)} raw daily curves "
+           f"(max value: {max(c.max() for c in raw_curves_9.values()):.1f} m³/hr)")
+if raw_curves_9 and len(raw_curves_9) >= 1:
+
+    if len(raw_curves_9) < 10:
+        db_supplement = db_load(hours_back=168)
+        if not db_supplement.empty:
+            db_supplement["date"] = db_supplement["timestamp"].dt.date
+            for date_, grp in db_supplement.groupby("date"):
+                date_str = str(date_)
+                if date_str not in raw_curves_9:
+                    grp = grp.copy()
+                    grp["hour"] = grp["timestamp"].dt.hour
+                    hourly = (grp.groupby("hour")["flow_rate_m3hr"]
+                                .median()
+                                .reindex(range(24), fill_value=np.nan))
+                    hourly = (hourly
+                            .interpolate(method="linear", limit=2,
+                                        limit_direction="both")
+                            .fillna(0))
+                    curve = hourly.values.astype(float)
+                    if curve.max() >= 1.0:
+                        raw_curves_9[date_str] = curve
+            st.info(f"ℹ️ Only {len(raw_curves_9)} API reference days — "
+                    f"supplemented with last 7 days from DB.")
     # ① Jan + Feb all-day overlay
     st.markdown(
         "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:16px 0 6px'>"
@@ -2404,7 +2451,7 @@ with tab_pattern:
         unsafe_allow_html=True)
 
     jan_curves, feb_curves = [], []
-    for date_str, curve in all_curves.items():
+    for date_str, curve in raw_curves_9.items():
         month = int(date_str[5:7])
         if month == 1: jan_curves.append(curve)
         elif month == 2: feb_curves.append(curve)
@@ -2422,7 +2469,19 @@ with tab_pattern:
         if n_total == 1:
             benchmark_median = all_day_curves[0]
         else:
-            benchmark_median = np.median(np.array(all_day_curves), axis=0)
+            # Per-hour median ignoring zero-supply days
+            all_day_matrix = np.array(all_day_curves)  # shape: (n_days, 24)
+            hourly_medians = []
+            for h in range(24):
+                col = all_day_matrix[:, h]
+                active = col[col > 5]        # ignore hours with no supply
+                if len(active) >= 2:
+                    hourly_medians.append(float(np.median(active)))
+                elif len(active) == 1:
+                    hourly_medians.append(float(active[0]))
+                else:
+                    hourly_medians.append(0.0)
+            benchmark_median = np.array(hourly_medians)
         
         ax.plot(hours_axis, benchmark_median, color="#e74c3c", lw=2.8,
                 label=f"Benchmark Median — {n_total} days (Jan+Feb {pattern_year})", zorder=5)
@@ -2896,186 +2955,224 @@ else:
         "this band — <span style='color:#ff6b6b'>red dots mark anomaly hours</span> "
         "where today is outside the margin.</div>",
         unsafe_allow_html=True)
+# ── Rebuild all_curves in RAW m³/hr for section ⑨ ────────────────────
 
-    if all_curves and len(all_curves) >= 1:
 
-            # If API returned too few reference days, supplement with DB data
-            if len(all_curves) < 10:
-                db_supplement = db_load(hours_back=168)  # last 7 days
-                if not db_supplement.empty:
-                    db_supplement["date"] = db_supplement["timestamp"].dt.date
-                    for date_, grp in db_supplement.groupby("date"):
-                        date_str = str(date_)
-                        if date_str not in all_curves:
-                            curve = normalize_daily_curve(grp)
-                            if curve is not None:
-                                all_curves[date_str] = curve
-                    st.info(f"ℹ️ Only {len(all_curves)} API reference days — "
-                            f"supplemented with last 7 days from DB for a better baseline.")
+    # ── STEP 1: Separate evening-supply days from no-supply days ──────────
+    all_curve_matrix = np.array(list(raw_curves_9.values())) # shape: (N, 24)
+    hours_axis = np.arange(24)
 
-            weekday_curves = []; weekend_curves = []
-            for date_str, curve in all_curves.items():
-                if pd.to_datetime(date_str).dayofweek >= 5:
-                    weekend_curves.append(curve)
-                else:
-                    weekday_curves.append(curve)
+    EVENING_HOURS = slice(18, 24)
+    evening_flow_per_day = all_curve_matrix[:, EVENING_HOURS].max(axis=1)
+    has_evening_supply = evening_flow_per_day > 5
 
-            today_dow = datetime.now().weekday()
-            if today_dow >= 5 and len(weekend_curves) >= 3:
-                all_curve_matrix = np.array(weekend_curves)
-                baseline_label = "Weekend baseline"
-            elif len(weekday_curves) >= 3:
-                all_curve_matrix = np.array(weekday_curves)
-                baseline_label = "Weekday baseline"
-            else:
-                all_curve_matrix = np.array(list(all_curves.values()))
-                baseline_label = "All-days baseline"
-                       # Separate days that had meaningful evening flow vs those that didn't
-            EVENING_HOURS = slice(18, 24)   # hours 18-23
-            evening_flow_per_day = all_curve_matrix[:, EVENING_HOURS].max(axis=1)
-            has_evening_supply = evening_flow_per_day > 5   # threshold same as noise floor
+    today_dow = datetime.now().weekday()
 
-            today_dow = datetime.now().weekday()
+    if has_evening_supply.sum() >= 5:
+        reference_matrix = all_curve_matrix[has_evening_supply]
+        baseline_label = f"Evening-supply days ({has_evening_supply.sum()} days)"
+    else:
+        reference_matrix = all_curve_matrix
+        baseline_label = f"All-days baseline ({len(all_curve_matrix)} days)"
 
-            if has_evening_supply.sum() >= 5:
-                # Enough days with evening supply — use only those for median
-                reference_matrix = all_curve_matrix[has_evening_supply]
-                baseline_label = f"Evening-supply days baseline ({has_evening_supply.sum()} days)"
-            else:
-                # Fall back to all days
-                reference_matrix = all_curve_matrix
-                baseline_label = f"All-days baseline ({len(all_curve_matrix)} days)"
+    # ── STEP 2: Compute median curve in raw m³/hr ─────────────────────────
+# ── STEP 2: Compute per-hour median ignoring zero-supply hours ────────
+    hourly_medians = []
+    for h in range(24):
+        col = reference_matrix[:, h]
+        active = col[col > 5]
+        if len(active) >= 2:
+            hourly_medians.append(float(np.median(active)))
+        elif len(active) == 1:
+            hourly_medians.append(float(active[0]))
+        else:
+            hourly_medians.append(0.0)
+    median_curve = np.array(hourly_medians)
 
-            median_curve = np.median(reference_matrix, axis=0)
-            median_curve = np.median(all_curve_matrix, axis=0)
+    # ── STEP 4: Build today's RAW hourly curve (MUST come before STEP 3) ──
+    today_raw_curve = None
+    if not today_df.empty:
+        today_df_temp = today_df.copy()
+        today_df_temp["hour"] = today_df_temp["timestamp"].dt.hour
+        hourly_today = (today_df_temp
+                        .groupby("hour")["flow_rate_m3hr"]
+                        .median()
+                        .reindex(range(24), fill_value=np.nan))
+        hourly_today = (hourly_today
+                        .interpolate(method="linear", limit=2,
+                                     limit_direction="both")
+                        .fillna(0))
+        today_raw_curve = hourly_today.values.astype(float)
 
-            non_zero_mask = median_curve > 5
-            supply_avg = np.mean(reference_matrix[:, non_zero_mask]) if non_zero_mask.any() \
-                        else np.mean(reference_matrix)   # ← reference_matrix not all_curve_matrix
-            margin_10pct = 0.20 * supply_avg
-            lower_band   = np.clip(median_curve - margin_10pct, 0, None)
-            upper_band   = median_curve + margin_10pct
+    # ── STEP 3: Margin based on supply hours + today's floor ──────────────
+    non_zero_mask = median_curve > 5
 
-            # ── TODAY vs BASELINE PLOT ─────────────────────────────────────
-            today_norm_curve = None
-            if not today_df.empty:
-                today_norm_curve = normalize_daily_curve(today_df)
-                if today_norm_curve is None and len(today_df) >= 2:
-                    today_df_temp = today_df.copy()
-                    today_df_temp["hour"] = today_df_temp["timestamp"].dt.hour
-                    hourly = today_df_temp.groupby("hour")["flow_rate_m3hr"].mean()
-                    curve  = hourly.reindex(range(24), fill_value=0.0).values.astype(float)
-                    mn, mx = curve.min(), curve.max()
-                    if mx - mn > 1e-6:
-                        today_norm_curve = (curve - mn) / (mx - mn)
+    if non_zero_mask.any():
+        supply_avg = np.mean(reference_matrix[:, non_zero_mask])
+    else:
+        supply_avg = np.mean(reference_matrix)
 
-            fig, ax = plt.subplots(figsize=(13, 5))
-            ax.fill_between(hours_axis, lower_band, upper_band, alpha=0.22, color="#4a90d9",
-                    label=f"Normal margin (±10% of supply-hour avg = ±{margin_10pct:.3f})")
-            ax.plot(hours_axis, upper_band, color="#4a90d9", lw=0.9, linestyle="--", alpha=0.7,
-                    label="Upper margin (+10%)")
-            ax.plot(hours_axis, lower_band, color="#4a90d9", lw=0.9, linestyle="--", alpha=0.7,
-                    label="Lower margin (−10%)")
-            ax.plot(hours_axis, median_curve, color="#e74c3c", lw=2.5,
-                    label=f"Median (typical day) — {len(all_curves)} days", zorder=5)
+    # today_raw_curve now exists — safe to use here
+    if today_raw_curve is not None:
+        today_active = today_raw_curve[today_raw_curve > 5]
+        if len(today_active) > 0:
+            today_supply_avg = float(np.mean(today_active))
+            supply_avg = max(supply_avg, today_supply_avg)
 
-            anomaly_hours = []
-            if today_norm_curve is not None:
-                ax.plot(hours_axis, today_norm_curve, color="#3fb950", lw=2.0,
-                        label="Today's flow (m³/hr)", zorder=6)
-                above_margin  = today_norm_curve > upper_band
-                below_margin  = today_norm_curve < lower_band
-                anomaly_mask  = above_margin | below_margin
-                anomaly_hours = hours_axis[anomaly_mask].tolist()
-                if anomaly_hours:
-                    ax.scatter(hours_axis[anomaly_mask], today_norm_curve[anomaly_mask],
-                            color="#ff6b6b", s=80, zorder=8,
-                            label=f"Today anomaly hours ({len(anomaly_hours)})",
-                            edgecolors="#c0392b", linewidths=1.0)
-                    for h in anomaly_hours:
-                        ax.axvline(h, color="#ff6b6b", lw=0.5, alpha=0.3, linestyle=":")
-            else:
-                ax.text(0.5, 0.5, "No today data in DB\n(fetch a batch from the Live tab first)",
-                        transform=ax.transAxes, ha="center", va="center",
-                        color="#555d6e", fontsize=11)
+    margin = 0.20 * supply_avg
+    lower_band = np.clip(median_curve - margin, 0, None)
+    upper_band = median_curve + margin
 
-            current_hour = datetime.now().hour
-            x_max = 23 if today_norm_curve is None else min(23, current_hour + 1)
-            ax.set_xlim(-0.5, x_max + 0.5)
-            ax.set_xticks(range(0, x_max + 1, 1))
-            ax.set_xticklabels([f"{h:02d}" for h in range(x_max + 1)], fontsize=7.5)
-            ax.set_xlabel("Hour of Day (00 = midnight, 12 = noon)", fontsize=9)
-            ax.set_ylabel("Flow Rate (m³/hr)", fontsize=9)
-            y_max = max(
-                float(np.nanmax(all_curve_matrix)) if len(all_curve_matrix) > 0 else 1.0,
-                float(np.nanmax(today_norm_curve)) if today_norm_curve is not None else 0.0,
-            ) * 1.15
-            ax.set_ylim(-0.5, y_max)
+    # ── STEP 5: Detect anomaly hours on RAW scale ─────────────────────────
+# ── STEP 5: Detect anomaly hours on RAW scale ─────────────────────────
+    anomaly_hours = []
+    if today_raw_curve is not None:
+        above_margin = today_raw_curve > upper_band
+        # Flag if today is below lower band OR near-zero while median expects flow
+        below_margin = (today_raw_curve < lower_band) | (
+            (today_raw_curve < 5) & (median_curve > 5)
+        )
+        supply_hour_mask = median_curve > 5
+        anomaly_mask = (above_margin | below_margin) & supply_hour_mask
+        anomaly_hours = hours_axis[anomaly_mask].tolist()
+    # ── STEP 6: Y-axis scale from actual data ─────────────────────────────
+    y_max_ref   = float(np.nanmax(reference_matrix)) if len(reference_matrix) else 60.0
+    y_max_today = float(np.nanmax(today_raw_curve))  if today_raw_curve is not None else 0.0
+    y_max = max(y_max_ref, y_max_today) * 1.15
+    y_max = max(y_max, 10.0)  # at least 10 m³/hr on axis
 
-            title_str = f"2-Month Baseline vs Today  |  {len(all_curves)} reference days (Jan–Feb {pattern_year})"
-            if today_norm_curve is not None and anomaly_hours:
-                title_str += f"\n⚠️  Today is OUTSIDE the normal margin at hours: {anomaly_hours}"
-            elif today_norm_curve is not None:
-                title_str += "\n✅  Today stays within the normal margin — no anomaly"
-            ax.set_title(title_str, fontsize=10)
-            ax.legend(fontsize=8, loc="upper right", ncol=2, framealpha=0.85)
-            ax.grid(True, alpha=0.3); ax.spines[["top","right"]].set_visible(False)
-            fig.tight_layout(); st.pyplot(fig); plt.close(fig)
+    # ── STEP 7: Plot ───────────────────────────────────────────────────────
+    current_hour = datetime.now().hour
+    x_max = 23 if today_raw_curve is None else min(23, current_hour + 1)
 
-            if today_norm_curve is not None:
-                if anomaly_hours:
-                    st.markdown(
-                        f"<div style='background:#1e1215;border:1px solid #ff6b6b;"
-                        f"border-radius:8px;padding:12px 16px;margin-top:8px'>"
-                        f"<span style='color:#ff6b6b;font-weight:600;font-size:.85rem'>"
-                        f"⚠️  Today has {len(anomaly_hours)} anomaly hour(s) outside the 2-month margin</span>"
-                        f"<br><span style='color:#8b949e;font-size:.78rem'>"
-                        f"Anomaly hours: {', '.join(f'{int(h):02d}:00' for h in anomaly_hours)}<br>"
-                        f"Could be a supply disruption, leak, or demand surge.</span></div>",
-                        unsafe_allow_html=True)
+    fig, ax = plt.subplots(figsize=(13, 5))
 
-                    anomaly_details = []
-                    for h in anomaly_hours:
-                        h          = int(h)
-                        today_val  = float(today_norm_curve[h])
-                        median_val = float(median_curve[h])
-                        upper_val  = float(upper_band[h])
-                        lower_val  = float(lower_band[h])
-                        direction  = "↑ ABOVE normal" if today_val > upper_val else "↓ BELOW normal"
-                        pct_diff   = abs(today_val - median_val) / max(median_val, 0.01) * 100
-                        anomaly_details.append({
-                            "Hour"          : f"{h:02d}:00",
-                            "Direction"     : direction,
-                            "% from median" : f"{pct_diff:.0f}%",
-                            "Today (norm)"  : f"{today_val:.3f}",
-                            "Median (norm)" : f"{median_val:.3f}",
-                            "Normal range"  : f"{lower_val:.3f} – {upper_val:.3f}",
-                        })
-                    st.markdown(
-                        "<div style='font-size:.82rem;font-weight:500;color:#ff6b6b;"
-                        "margin:12px 0 4px'>Anomaly breakdown by hour</div>",
-                        unsafe_allow_html=True)
-                    st.dataframe(pd.DataFrame(anomaly_details), hide_index=True,
-                                height=min(320, len(anomaly_details) * 38 + 40))
-                else:
-                    st.markdown(
-                        "<div style='background:#0d1a12;border:1px solid #3fb950;"
-                        "border-radius:8px;padding:12px 16px;margin-top:8px'>"
-                        "<span style='color:#3fb950;font-weight:600;font-size:.85rem'>"
-                        "✅  Today's flow pattern is within the normal 2-month margin</span></div>",
-                        unsafe_allow_html=True)
+    # Margin band
+    ax.fill_between(hours_axis, lower_band, upper_band,
+                    alpha=0.35, color="#4a90d9",
+                    label=f"Normal margin (±20% of supply avg = ±{margin:.1f} m³/hr)")
+    ax.plot(hours_axis, upper_band, color="#4a90d9",
+            lw=0.9, linestyle="--", alpha=0.7, label=f"Upper margin (+20%)")
+    ax.plot(hours_axis, lower_band, color="#4a90d9",
+            lw=0.9, linestyle="--", alpha=0.7, label=f"Lower margin (−20%)")
 
+    # Median reference curve
+    ax.plot(hours_axis, median_curve, color="#e74c3c", lw=2.5,
+            label=f"Median — {len(reference_matrix)} days ({baseline_label})",
+            zorder=5)
+
+    # Today's raw curve
+    if today_raw_curve is not None:
+        ax.plot(hours_axis[:x_max+1], today_raw_curve[:x_max+1],
+                color="#3fb950", lw=2.0,
+                label="Today's flow (m³/hr)", zorder=6)
+
+        # Anomaly dots
+        if anomaly_hours:
+            anom_idx = [int(h) for h in anomaly_hours if int(h) <= x_max]
+            ax.scatter(anom_idx,
+                       today_raw_curve[anom_idx],
+                       color="#ff6b6b", s=90, zorder=8,
+                       label=f"Anomaly hours ({len(anom_idx)})",
+                       edgecolors="#c0392b", linewidths=1.2)
+            for h in anom_idx:
+                ax.axvline(h, color="#ff6b6b", lw=0.5, alpha=0.25, linestyle=":")
+    else:
+        ax.text(0.5, 0.5,
+                "No today data in DB\n(fetch a batch from Live tab first)",
+                transform=ax.transAxes, ha="center", va="center",
+                color="#555d6e", fontsize=11)
+
+    # Axis formatting
+    ax.set_xlim(-0.5, x_max + 0.5)
+    ax.set_xticks(range(0, x_max + 1, 1))
+    ax.set_xticklabels([f"{h:02d}" for h in range(x_max + 1)], fontsize=7.5)
+    ax.set_ylim(-1, y_max)   # raw m³/hr scale, NOT 0-1
+    ax.set_xlabel("Hour of Day (00 = midnight, 12 = noon)", fontsize=9)
+    ax.set_ylabel("Flow Rate (m³/hr)", fontsize=9)   # raw unit label
+
+    # Title
+    if today_raw_curve is not None and anomaly_hours:
+        title_str = (f"2-Month Baseline vs Today  |  {len(reference_matrix)} "
+                     f"reference days (Jan–Feb {pattern_year})\n"
+                     f"⚠️  Today OUTSIDE normal margin at hours: {anomaly_hours}")
+    elif today_raw_curve is not None:
+        title_str = (f"2-Month Baseline vs Today  |  {len(reference_matrix)} "
+                     f"reference days (Jan–Feb {pattern_year})\n"
+                     f"✅  Today stays within normal margin")
+    else:
+        title_str = (f"2-Month Baseline  |  {len(reference_matrix)} "
+                     f"reference days (Jan–Feb {pattern_year})")
+
+    ax.set_title(title_str, fontsize=10)
+    ax.legend(fontsize=8, loc="upper right", ncol=2, framealpha=0.85)
+    ax.grid(True, alpha=0.3)
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+
+    # ── STEP 8: Status banner ──────────────────────────────────────────────
+    if today_raw_curve is not None:
+        if anomaly_hours:
+            st.markdown(
+                f"<div style='background:#1e1215;border:1px solid #ff6b6b;"
+                f"border-radius:8px;padding:12px 16px;margin-top:8px'>"
+                f"<span style='color:#ff6b6b;font-weight:600;font-size:.85rem'>"
+                f"⚠️  Today has {len(anomaly_hours)} anomaly hour(s) outside "
+                f"the 2-month margin</span><br>"
+                f"<span style='color:#8b949e;font-size:.78rem'>"
+                f"Anomaly hours: "
+                f"{', '.join(f'{int(h):02d}:00' for h in anomaly_hours)}<br>"
+                f"Could be a supply disruption, leak, or demand surge."
+                f"</span></div>",
+                unsafe_allow_html=True)
+
+            # Detailed anomaly table
+            anomaly_details = []
+            for h in anomaly_hours:
+                h         = int(h)
+                today_val = float(today_raw_curve[h])
+                med_val   = float(median_curve[h])
+                up_val    = float(upper_band[h])
+                lo_val    = float(lower_band[h])
+                direction = "↑ ABOVE normal" if today_val > up_val else "↓ BELOW normal"
+                pct_diff  = abs(today_val - med_val) / max(med_val, 0.01) * 100
+                anomaly_details.append({
+                    "Hour"          : f"{h:02d}:00",
+                    "Direction"     : direction,
+                    "% from median" : f"{pct_diff:.0f}%",
+                    "Today (m³/hr)" : f"{today_val:.2f}",    # raw unit
+                    "Median (m³/hr)": f"{med_val:.2f}",      # raw unit
+                    "Normal range"  : f"{lo_val:.1f} – {up_val:.1f} m³/hr",
+                })
+            st.markdown(
+                "<div style='font-size:.82rem;font-weight:500;color:#ff6b6b;"
+                "margin:12px 0 4px'>Anomaly breakdown by hour</div>",
+                unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame(anomaly_details), hide_index=True,
+                         height=min(320, len(anomaly_details) * 38 + 40))
+        else:
+            st.markdown(
+                "<div style='background:#0d1a12;border:1px solid #3fb950;"
+                "border-radius:8px;padding:12px 16px;margin-top:8px'>"
+                "<span style='color:#3fb950;font-weight:600;font-size:.85rem'>"
+                "✅  Today's flow pattern is within the normal 2-month margin"
+                "</span></div>",
+                unsafe_allow_html=True)
+
+    # ── STEP 9: How margin is calculated expander ──────────────────────────
             with st.expander("💡 How the margin is calculated"):
-                _supply_avg   = supply_avg   if 'supply_avg'   in dir() else 0.0
-                _margin       = margin_10pct if 'margin_10pct' in dir() else 0.0
                 st.markdown(f"""
-            **Currently using: ±20% of daily average flow rate (m³/hr)**
-            - Daily avg flow rate: `{_supply_avg:.3f} m³/hr`
-            - Margin: `±{_margin:.3f} m³/hr`
-            """)
+        **Currently using: ±20% of supply-hour average flow rate (m³/hr)**
+        - Reference days used: `{len(reference_matrix)}` ({baseline_label})
+        - Supply-hour avg flow rate: `{supply_avg:.2f} m³/hr`
+        - Margin: `±{margin:.2f} m³/hr`
+        - Supply hours identified: hours where median > 5 m³/hr
+                """)
+
     else:
         st.info("Not enough historical curves — fetch data first using the button above.")
-
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 7 — QoS TREND  (reads worker DB scores)
 # ═════════════════════════════════════════════════════════════════════════════
