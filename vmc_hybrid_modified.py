@@ -122,6 +122,22 @@ METER_MAP = {
         "aliases": ["MJP-4685", "DLP2.BI1", "VMC.DLP2.MJP.MJP-4685"],
         "flow_rate_max": 4000,                       # bidirectional, spikes to ~3000 m³/hr
     },
+    "MJP-4738": {
+    "dlp": "4738",
+    "flowmeter": "B",
+    "channel": "BI1",   # safe guess (same pattern as others)
+    "tag_match": "MJP-4738",
+    "aliases": ["MJP-4738", "FMB", "DLP2.BI1"],
+    
+},
+    "KRL-6136": {
+    "dlp": "6136",
+    "flowmeter": "A",
+    "channel": "BI1",
+    "tag_match": "6136",
+    "aliases": ["KRL-6136", "6136", "FMA", "KRL"],
+    #"flow_rate_max": 100
+},
 }
 
 
@@ -245,19 +261,29 @@ def init_db():
     con.close()
 
 
+# ── CHANGE: store signed flow, not abs ────────────────────────────────────
 def db_insert(ts: datetime, flow: float, anom: int, meter_id: str | None = None):
     meter_id = meter_id or st.session_state.get("object_name", "MJP-5917")
-
     con = sqlite3.connect(DB_PATH)
     con.execute(
-        """
-        INSERT OR IGNORE INTO readings (meter_id, timestamp, flow_rate, is_anomaly)
-        VALUES (?, ?, ?, ?)
-        """,
-        (meter_id, ts.isoformat(), flow, anom)
+        "INSERT OR IGNORE INTO readings (meter_id, timestamp, flow_rate, is_anomaly) VALUES (?, ?, ?, ?)",
+        (meter_id, ts.isoformat(), flow, anom)   # ← no abs() here
     )
-    con.commit()
-    con.close()
+    con.commit(); con.close()
+
+def db_insert_batch(rows: list, meter_id: str | None = None):
+    if not rows: return
+    meter_id = meter_id or st.session_state.get("object_name", "MJP-5917")
+    rows_with_meter = [
+        (meter_id, ts, flow, anom)               # ← no abs() here
+        for ts, flow, anom in rows
+    ]
+    con = sqlite3.connect(DB_PATH)
+    con.executemany(
+        "INSERT OR IGNORE INTO readings (meter_id, timestamp, flow_rate, is_anomaly) VALUES (?, ?, ?, ?)",
+        rows_with_meter,
+    )
+    con.commit(); con.close()
 
 def db_sanitize(max_flow: float = 800.0, meter_id: str | None = None) -> int:
     meter_id = meter_id or st.session_state.get("object_name", "MJP-5917")
@@ -272,28 +298,7 @@ def db_sanitize(max_flow: float = 800.0, meter_id: str | None = None) -> int:
     con.close()
     return deleted
 
-def db_insert_batch(rows: list, meter_id: str | None = None):
-    if not rows:
-        return
 
-    meter_id = meter_id or st.session_state.get("object_name", "MJP-5917")
-
-
-    rows_with_meter = [
-        (meter_id, ts, flow, anom)
-        for ts, flow, anom in rows
-    ]
-
-    con = sqlite3.connect(DB_PATH)
-    con.executemany(
-        """
-        INSERT OR IGNORE INTO readings (meter_id, timestamp, flow_rate, is_anomaly)
-        VALUES (?, ?, ?, ?)
-        """,
-        rows_with_meter,
-    )
-    con.commit()
-    con.close()
 
 def db_load(hours_back: int = 24, meter_id: str | None = None) -> pd.DataFrame:
     meter_id = meter_id or st.session_state.get("object_name", "MJP-5917")
@@ -555,6 +560,9 @@ def _parse_batch_response(data, fallback_ts: datetime) -> list[dict]:
             try:
                 # FIX: abs() — bidirectional meter produces negative values
                 flow = float(row.get("value") or 0)
+                if abs(flow) > FLOW_RATE_MAX:          # ← abs only for the limit check
+                    continue
+                records.append({"timestamp": ts, "flow_rate": flow})
             except (TypeError, ValueError):
                 continue
             if flow > FLOW_RATE_MAX:
@@ -626,88 +634,78 @@ def _parse_batch_response(data, fallback_ts: datetime) -> list[dict]:
 def fetch_real_data(hours: int = 24) -> list[dict]:
     now = datetime.now()
     start = now - timedelta(hours=hours)
-
     selected_meter, meter_cfg, match_terms = get_meter_runtime_config()
 
-
     if not meter_cfg:
-
         st.session_state.last_error = (
             f"No direct /data mapping for meter '{selected_meter}'. "
             f"Trying generic objectname API instead."
         )
         return []
 
-
     url = f"{VMC_BASE}/data"
+    all_records = []
 
-    params = {
-        "dlp": meter_cfg["dlp"],
-        "flowmeter": meter_cfg["flowmeter"],
-        "startTime": start.strftime("%Y-%m-%d %H:%M:%S"),
-        "endTime": now.strftime("%Y-%m-%d %H:%M:%S"),
-    }
+    # Chunk into 24-hour windows to avoid API timeouts
+    chunk_start = start
+    while chunk_start < now:
+        chunk_end = min(chunk_start + timedelta(hours=24), now)
 
-    try:
-        r = SESSION.get(url, params=params, timeout=30)
-        st.session_state.last_raw = (
-            f"HTTP {r.status_code} | meter={selected_meter} | "
-            f"dlp={meter_cfg['dlp']} | flowmeter={meter_cfg['flowmeter']} | "
-            f"channel={meter_cfg.get('channel')} | tag_match={meter_cfg.get('tag_match')}\n"
-            f"URL: {r.url}\n\n{r.text[:3000]}"
-        )
-
-        r.raise_for_status()
-        payload = r.json()
-        data = payload.get("data", [])
-
-    except Exception as e:
-        st.session_state.last_error = f"[DIRECT API] {e}"
-        return []
-
-    records = []
-    channel = meter_cfg.get("channel", "AI1")
-    tag_match = meter_cfg.get("tag_match", selected_meter)
-
-    for row in data:
-        tag = str(row.get("tagName") or row.get("tagname") or "")
-
-        if not tag_matches_meter(tag, match_terms):
-            continue
-
+        params = {
+            "dlp": meter_cfg["dlp"],
+            "flowmeter": meter_cfg["flowmeter"],
+            "startTime": chunk_start.strftime("%Y-%m-%d %H:%M:%S"),
+            "endTime":   chunk_end.strftime("%Y-%m-%d %H:%M:%S"),
+        }
 
         try:
-            ts = pd.to_datetime(row["timestamp"])
-            flow = abs(float(row["value"]))
-        except Exception:
+            r = SESSION.get(url, params=params, timeout=30)
+            st.session_state.last_raw = (
+                f"HTTP {r.status_code} | chunk {chunk_start.date()}→{chunk_end.date()} | "
+                f"meter={selected_meter}\nURL: {r.url}\n\n{r.text[:1000]}"
+            )
+            r.raise_for_status()
+            payload = r.json()
+            data = payload.get("data", [])
+        except Exception as e:
+            st.session_state.last_error = f"[DIRECT API chunk {chunk_start.date()}] {e}"
+            chunk_start = chunk_end
             continue
 
-        if flow > FLOW_RATE_MAX:
-            continue
+        channel    = meter_cfg.get("channel", "AI1")
+        tag_match  = meter_cfg.get("tag_match", selected_meter)
 
-        records.append({
-            "timestamp": ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
-            "flow_rate": flow,
-        })
+        for row in data:
+            tag = str(row.get("tagName") or row.get("tagname") or "")
+            if not tag_matches_meter(tag, match_terms):
+                continue
+            try:
+                ts   = pd.to_datetime(row["timestamp"])
+                flow = float(row["value"])
+                if abs(flow) > FLOW_RATE_MAX:
+                    continue
+                all_records.append({
+                    "timestamp": ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
+                    "flow_rate": flow,
+                })
+            except Exception:
+                continue
 
-    if records:
-        df = pd.DataFrame(records)
+        chunk_start = chunk_end
+
+    if all_records:
+        df = pd.DataFrame(all_records)
         df = df.sort_values("timestamp")
-
-        # Dedup by timestamp + flow, not timestamp only
         df["_flow_round"] = df["flow_rate"].round(3)
         df = df.drop_duplicates(["timestamp", "_flow_round"])
         df = df.drop(columns=["_flow_round"])
-
         return df.to_dict("records")
 
     st.session_state.last_error = (
-        f"No rows found for meter={selected_meter}, "
-        f"dlp={meter_cfg['dlp']}, flowmeter={meter_cfg['flowmeter']}, "
-        f"channel={channel}, tag_match={tag_match}"
+        f"No rows found for meter={selected_meter} across {hours}h range "
+        f"(dlp={meter_cfg['dlp']}, flowmeter={meter_cfg['flowmeter']})"
     )
     return []
-
 
 def fetch_data(hours):
     selected_meter = st.session_state.get("object_name", "").strip()
@@ -1028,68 +1026,101 @@ def forecast(df, steps):
 
 def fetch_two_months(year: int = 2025) -> pd.DataFrame:
     """
-    Pull data in weekly chunks from Jan 1 of given year up to today.
-    Wider window = more readings even if API is sparse/event-driven.
-    Accepts even 1 record per chunk (was > 1 before).
+    Pull data in weekly chunks using the SAME /data API as fetch_real_data().
+    This ensures Pattern Analysis uses identical data to Live/Batch tab.
     """
-    failed_chunks = []
+    selected_meter, meter_cfg, match_terms = get_meter_runtime_config()
+    
     jan_start = datetime(year, 1, 1, 0, 0, 0)
-    # OPTION 2 — fetch up to today instead of stopping at Feb 28
-    feb_end   = datetime.now()
-
+    end_date  = datetime.now()
     all_records: list[dict] = []
-    chunk_start = jan_start
+    failed_chunks = []
 
-    while chunk_start <= feb_end:
-        chunk_end       = min(chunk_start + timedelta(days=7), feb_end)
-        chunk_succeeded = False
+    # Use direct /data API if meter is in METER_MAP
+    if meter_cfg:
+        url = f"{VMC_BASE}/data"
+        chunk_start = jan_start
 
-        for path in HISTORY_API_PATHS:
+        while chunk_start <= end_date:
+            chunk_end = min(chunk_start + timedelta(days=1), end_date)
+
+            params = {
+                "dlp":       meter_cfg["dlp"],
+                "flowmeter": meter_cfg["flowmeter"],
+                "startTime": chunk_start.strftime("%Y-%m-%d %H:%M:%S"),
+                "endTime":   chunk_end.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+
             try:
-                r = SESSION.get(
-                    f"{VMC_BASE}{path}",
-                    params={
-                        "objectname": OBJECT_NAME,
-                        "startTime":  chunk_start.strftime("%Y-%m-%d %H:%M:%S"),
-                        "endTime":    chunk_end.strftime("%Y-%m-%d %H:%M:%S"),
-                    },
-                    timeout=10,
-                )
+                r = SESSION.get(url, params=params, timeout=30)
+                r.raise_for_status()
+                payload = r.json()
+                data = payload.get("data", [])
+
+                chunk_records = []
+                for row in data:
+                    tag = str(row.get("tagName") or row.get("tagname") or "")
+                    if not tag_matches_meter(tag, match_terms):
+                        continue
+                    try:
+                        ts   = pd.to_datetime(row["timestamp"])
+                        flow = abs(float(row["value"]))
+                    except Exception:
+                        continue
+                    if flow > FLOW_RATE_MAX:
+                        continue
+                    chunk_records.append({
+                        "timestamp": ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
+                        "flow_rate": flow,
+                    })
+
+                if chunk_records:
+                    all_records.extend(chunk_records)
+                else:
+                    failed_chunks.append(chunk_start.strftime('%b %d'))
+
             except Exception as e:
-                st.session_state.last_error = f"[{path}] {e}"
-                continue
+                failed_chunks.append(chunk_start.strftime('%b %d'))
+                st.session_state.last_error = f"[fetch_two_months chunk {chunk_start.date()}] {e}"
 
-            if r.status_code != 200:
-                continue
-            if "<title>login</title>" in r.text.lower():
-                st.session_state.token = None
-                continue
+            chunk_start = chunk_end + timedelta(seconds=1)
 
-            try:
-                data = r.json()
-            except Exception:
-                continue
+    else:
+        # Fallback: old objectname-based APIs for unlisted meters
+        chunk_start = jan_start
+        while chunk_start <= end_date:
+            chunk_end = min(chunk_start + timedelta(days=7), end_date)
+            chunk_ok  = False
 
-            records = _parse_batch_response(data, chunk_end)
-# OPTION 2 — accept even 1 record per chunk
-            if len(records) >= 1:
-                all_records.extend(records)
-                chunk_succeeded = True
-                break
+            for path in HISTORY_API_PATHS:
+                try:
+                    r = SESSION.get(
+                        f"{VMC_BASE}{path}",
+                        params={
+                            "objectname": selected_meter,
+                            "startTime":  chunk_start.strftime("%Y-%m-%d %H:%M:%S"),
+                            "endTime":    chunk_end.strftime("%Y-%m-%d %H:%M:%S"),
+                        },
+                        timeout=10,
+                    )
+                    if r.status_code != 200:
+                        continue
+                    records = _parse_batch_response(r.json(), chunk_end)
+                    if records:
+                        all_records.extend(records)
+                        chunk_ok = True
+                        break
+                except Exception:
+                    continue
 
-        if not chunk_succeeded:
-            failed_chunks.append(
-                f"{chunk_start.strftime('%b %d')}–{chunk_end.strftime('%b %d')}"
-            )
-
-        chunk_start = chunk_end + timedelta(seconds=1)
+            if not chunk_ok:
+                failed_chunks.append(chunk_start.strftime('%b %d'))
+            chunk_start = chunk_end + timedelta(seconds=1)
 
     if failed_chunks:
         st.warning(
-            f"⚠️ These date ranges returned no data from the API: "
-            f"**{', '.join(failed_chunks)}**\n\n"
-            f"Your benchmark may be incomplete. "
-            f"Check your connection or try fetching again."
+            f"⚠️ No data for: **{', '.join(failed_chunks[:10])}**"
+            + (f" ... and {len(failed_chunks)-10} more" if len(failed_chunks) > 10 else "")
         )
 
     if not all_records:
@@ -1098,7 +1129,9 @@ def fetch_two_months(year: int = 2025) -> pd.DataFrame:
     df = pd.DataFrame(all_records)
     df = df.rename(columns={"flow_rate": "flow_rate_m3hr"})
     df["timestamp"] = pd.to_datetime(df["timestamp"])
-    df = df.drop_duplicates("timestamp").sort_values("timestamp").reset_index(drop=True)
+    df["_fr"]       = df["flow_rate_m3hr"].round(3)
+    df = df.drop_duplicates(["timestamp", "_fr"]).drop(columns=["_fr"])
+    df = df.sort_values("timestamp").reset_index(drop=True)
     return df
 
 
@@ -1114,7 +1147,7 @@ def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     n_real = np.sum(~np.isnan(curve))
 
     # OPTION 1 embedded here — accept even 1 real reading
-    if n_real < 1:
+    if n_real < 2:
         return None
 
     # OPTION 4 — interpolate gaps between sparse readings
@@ -1124,8 +1157,8 @@ def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     curve = s.values
 
     mn, mx = curve.min(), curve.max()
-    if mx - mn < 1e-6:
-        return None  # flat line — no shape info
+    if mx - mn < 0.01:   # was 1e-6 — but also catches nearly-flat curves
+        return None
     return (curve - mn) / (mx - mn)
 
 
@@ -1476,7 +1509,7 @@ with st.sidebar:
 
     if batch_mode:
         st.markdown("<div style='font-size:.68rem;color:#555d6e;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px'>Batch settings</div>", unsafe_allow_html=True)
-        batch_hours = st.slider("Fetch window (hours)", 1, 24, 24)
+        batch_hours = st.slider("Fetch window (hours)", 1, 192, 192)
     else:
         st.markdown("<div style='font-size:.68rem;color:#555d6e;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px'>Live settings</div>", unsafe_allow_html=True)
         poll_interval = st.slider("Poll interval (s)", 1, 30, 1)
@@ -1499,7 +1532,8 @@ with st.sidebar:
     night_end      = st.slider("Night end (hr)", 0, 23, 16)     # was 14
 
     forecast_steps = st.slider("Forecast horizon", 10, 60, 30)
-    db_hours       = st.slider("DB history (hrs)", 1, 168, 24)
+    db_hours = st.slider("DB history (hrs)", 1, 192, 192)
+
 
     st.markdown("<hr style='border-color:#2a2d3a;margin:10px 0'>", unsafe_allow_html=True)
     st.markdown("<div style='font-size:.68rem;color:#555d6e;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px'>Pattern analysis</div>", unsafe_allow_html=True)
@@ -1724,7 +1758,19 @@ with tab_live:
         ax.set_ylim(bottom=0)
         ax.grid(True, alpha=.4, lw=.5)
         ax.spines[["top","right","left","bottom"]].set_visible(False)
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S" if wsecs <= 600 else "%H:%M"))
+        span_hours = (df["timestamp"].max() - df["timestamp"].min()).total_seconds() / 3600
+        if span_hours <= 0.1:
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
+            ax.xaxis.set_major_locator(mdates.MinuteLocator(interval=1))
+        elif span_hours <= 6:
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
+        elif span_hours <= 48:
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=6))
+        else:
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
+            ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
         leg = ax.legend(fontsize=7.5, loc="upper right", framealpha=.85, edgecolor="#2a2d3a")
         for t in leg.get_texts(): t.set_color("#9aa0b0")
         fig.autofmt_xdate(rotation=20)
@@ -2475,106 +2521,88 @@ with tab_pattern:
         "⑥ Today's Flow vs Benchmark (PDF §5 comparison methodology)</div>",
         unsafe_allow_html=True)
 
-def db_load_today() -> pd.DataFrame:
+def db_load_recent_day(min_readings: int = 20) -> tuple[pd.DataFrame, str]:
+    """
+    Returns today's readings if we have at least min_readings.
+    Falls back to yesterday ONLY — never merges multiple days.
+    Timestamps are NOT shifted — kept as-is so hour_frac is accurate.
+    """
     meter_id = st.session_state.get("object_name", "MJP-5917")
-
-
     con = sqlite3.connect(DB_PATH)
 
-    today_midnight = datetime.now().replace(
-        hour=0, minute=0, second=0, microsecond=0
-    ).isoformat()
+    for days_ago in range(2):   # only try today (0) and yesterday (1)
+        day_start = (datetime.now() - timedelta(days=days_ago)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        day_end = day_start + timedelta(days=1)
 
-    df = pd.read_sql(
-        """
-        SELECT meter_id, timestamp, flow_rate, is_anomaly
-        FROM readings
-        WHERE timestamp >= ?
-          AND meter_id = ?
-        ORDER BY timestamp
-        """,
-        con,
-        params=(today_midnight, meter_id)
-    )
+        df_day = pd.read_sql(
+            """
+            SELECT meter_id, timestamp, flow_rate, is_anomaly
+            FROM readings
+            WHERE timestamp >= ? AND timestamp < ? AND meter_id = ?
+            ORDER BY timestamp
+            """,
+            con,
+            params=(day_start.isoformat(), day_end.isoformat(), meter_id),
+        )
+
+        if df_day.empty or len(df_day) < min_readings:
+            continue
+
+        df_day["timestamp"] = pd.to_datetime(df_day["timestamp"], format="mixed")
+        df_day = df_day.rename(columns={"flow_rate": "flow_rate_m3hr"})
+
+        label = "Today" if days_ago == 0 else "Yesterday (today has too few readings)"
+        con.close()
+        return df_day.sort_values("timestamp").reset_index(drop=True), label
 
     con.close()
 
-    if df.empty:
-        return df
-
-    df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed")
-    df = df.rename(columns={"flow_rate": "flow_rate_m3hr"})
-    return df
-
-
-def db_load_yesterday() -> pd.DataFrame:
-    meter_id = st.session_state.get("object_name", "MJP-5917")
-
-
-    con = sqlite3.connect(DB_PATH)
-
-    yest_start = (datetime.now() - timedelta(days=1)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    ).isoformat()
-
-    yest_end = datetime.now().replace(
-        hour=0, minute=0, second=0, microsecond=0
-    ).isoformat()
-
-    df = pd.read_sql(
-        """
-        SELECT meter_id, timestamp, flow_rate, is_anomaly
-        FROM readings
-        WHERE timestamp >= ?
-          AND timestamp < ?
-          AND meter_id = ?
-        ORDER BY timestamp
-        """,
-        con,
-        params=(yest_start, yest_end, meter_id)
+    # Last resort — return whatever today has, even if sparse
+    day_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    df_today = pd.read_sql(
+        "SELECT meter_id, timestamp, flow_rate, is_anomaly FROM readings "
+        "WHERE timestamp >= ? AND meter_id = ? ORDER BY timestamp",
+        sqlite3.connect(DB_PATH),
+        params=(day_start.isoformat(), meter_id),
     )
+    if not df_today.empty:
+        df_today["timestamp"] = pd.to_datetime(df_today["timestamp"], format="mixed")
+        df_today = df_today.rename(columns={"flow_rate": "flow_rate_m3hr"})
+        return df_today.sort_values("timestamp").reset_index(drop=True), "Today (sparse)"
 
-    con.close()
+    return pd.DataFrame(), "No data"
 
-    if df.empty:
-        return df
-
-    df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed")
-    df = df.rename(columns={"flow_rate": "flow_rate_m3hr"})
-    return df
 
 bench_box = st.session_state.get("benchmark_windows", None)
-today_df = db_load_today()
-using_yesterday = False
 
-# If today has fewer than 6 hours of data, fall back to yesterday
-if today_df.empty or today_df["timestamp"].dt.hour.nunique() < 6:
-    yesterday_df = db_load_yesterday()
-    if not yesterday_df.empty:
-        today_df = yesterday_df
-        using_yesterday = True
+today_df, _today_label = db_load_recent_day(min_readings=20)
 
-if using_yesterday:
-    st.info("📅 Today has less than 6 hours of data — showing **yesterday's** flow for comparison.")
+if _today_label != "Today":
+    st.info(f"📅 {_today_label} — used to build a complete 24h comparison curve.")
+
+if not today_df.empty:
+    today_df["hour"] = today_df["timestamp"].dt.hour
+
+    today_df = today_df.sort_values("timestamp").reset_index(drop=True)
+    today_df["hour_frac"] = (
+        today_df["timestamp"].dt.hour +
+        today_df["timestamp"].dt.minute / 60 +
+        today_df["timestamp"].dt.second / 3600
+    )
 
 if today_df.empty:
     st.info("No today data in DB yet — fetch a batch from the Live tab first.")
     today_windows = []
-    today_qos = 0.0
+    today_qos = (0.0, ["Benchmark not available"], None)
     today_anomalies = []
     matched_win = None
     status_str = "N/A"
 else:
-    today_col = "flow_rate_m3hr" if "flow_rate_m3hr" in today_df.columns else "flow_rate"
+    today_col = "flow_rate_m3hr"
 
-    if today_col == "flow_rate":
-        today_df = today_df.rename(columns={"flow_rate": "flow_rate_m3hr"})
-        today_col = "flow_rate_m3hr"
-
-    today_df["hour_frac"] = (
-        today_df["timestamp"].dt.hour +
-        today_df["timestamp"].dt.minute / 60
-    )
+    today_df["hour_frac"] = today_df["hour"]
 
     today_windows = detect_supply_windows_df(today_df)
 
@@ -2613,8 +2641,8 @@ else:
         st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
         fig, ax = plt.subplots(figsize=(13, 4.5))
-        ax.plot(today_df["hour_frac"], today_df[today_col],
-                color="#4a90d9", lw=1.4, label="Today's flow")
+        ax.plot(today_df["hour_frac"], today_df["flow_rate_m3hr"],
+                color="#4a90d9", lw=1.0, alpha=0.85, label="Today's flow (m³/hr)")
         ax.fill_between(today_df["hour_frac"], today_df[today_col], alpha=0.08, color="#4a90d9")
         if bench_box:
             bx_s = bench_box["start_hour"]; bx_e = bench_box["end_hour"]
@@ -3106,4 +3134,3 @@ with tab_qos:
         "⬇️ Download QoS history CSV",
         data=qos_df.drop(columns=["date_dt"], errors="ignore").to_csv(index=False).encode(),
         file_name="vmc_qos_history.csv", mime="text/csv")
-    
