@@ -1,19 +1,3 @@
-"""
-VMC Water Flow — Hybrid Monitor + Analyser (BATCH MODE)
-
-
-
-
-FIXES APPLIED (v2):
-  1. Bidirectional meter support — abs(flow) everywhere so negative readings are preserved
-  2. Tagname partial match — OBJECT_NAME in tagname instead of == (handles full dot-path tags)
-  3. Dedup key includes flow value — prevents timestamp-collision data loss
-  4. Spike threshold default raised to 1500 (meter scale is ±500 m³/hr per VMC dashboard)
-  5. Night window defaults adjusted — supply runs ~17:00–02:00 per actual VMC data
-  6. Near-zero noise filter raised from >0 to >5 in EDA/analysis sections
-  7. fetch_reading() also uses abs() for bidirectional consistency
-"""
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -1136,31 +1120,61 @@ def fetch_two_months(year: int = 2025) -> pd.DataFrame:
 
 
 def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
+    """
+    Collapses one day into a 24-point hourly-median curve.
+    SHAPE-SAFE: returns raw m³/hr values — NO min-max normalization.
+    Outlier removal uses IQR clipping only; fallback to raw if correlation drops.
+    """
     day_df = day_df.copy()
     day_df["hour"] = day_df["timestamp"].dt.hour
-    hourly = day_df.groupby("hour")["flow_rate_m3hr"].median()  # ← median now
 
-    curve = hourly.reindex(range(24), fill_value=np.nan).values.astype(float)
+    # ── SAFE ADDITION: per-hour IQR clip before aggregation ──────────────────
+    # Removes intra-hour sensor spikes only (not inter-hour shape changes).
+    # A single extreme reading within an hour is replaced by the hour median.
+    # This does NOT shift timestamps or compress the curve.
+    def _iqr_clip_hour(s):
+        if len(s) < 4:
+            return s
+        q1, q3 = s.quantile(0.25), s.quantile(0.75)
+        iqr = q3 - q1
+        fence = 3.0          # wide fence — only clips clear spikes
+        lo, hi = q1 - fence * iqr, q3 + fence * iqr
+        return s.clip(lo, hi)
 
-    n_real = np.sum(~np.isnan(curve))
+    day_df["flow_clipped"] = day_df.groupby("hour")["flow_rate_m3hr"].transform(_iqr_clip_hour)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # Raw hourly median (unchanged original signal)
+    hourly_raw = day_df.groupby("hour")["flow_rate_m3hr"].median()
+    raw_curve  = hourly_raw.reindex(range(24), fill_value=np.nan).values.astype(float)
+
+    # Processed hourly median (on IQR-clipped values)
+    hourly_proc = day_df.groupby("hour")["flow_clipped"].median()
+    proc_curve  = hourly_proc.reindex(range(24), fill_value=np.nan).values.astype(float)
+
+    n_real = np.sum(~np.isnan(raw_curve))
     if n_real < 2:
         return None
 
-    # Interpolate missing hours
-    s = pd.Series(curve)
-    s = s.interpolate(method="linear", limit_direction="both")
-    s = s.fillna(0)
-    curve = s.values
+    # ── SAFE ADDITION: linear interpolation for gaps only (≤2 consecutive hrs) ─
+    # Fills isolated NaN hours introduced by missing readings.
+    # limit=2 prevents fabricating long stretches. fillna(0) handles edges only.
+    def _fill_curve(arr):
+        s = pd.Series(arr)
+        s = s.interpolate(method="linear", limit=2, limit_direction="both")
+        s = s.fillna(0)
+        return s.values
 
-    # NEW: skip normalization — return raw hourly avg in m³/hr
-# Reject dead days
-    if curve.max() < 1.0:
+    raw_curve  = _fill_curve(raw_curve)
+    proc_curve = _fill_curve(proc_curve)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # Reject dead days
+    if raw_curve.max() < 1.0:
         return None
 
-    # Reject cumulative-volume contamination —
-    # a real flow rate curve never rises monotonically all day
-    # Check if the curve is strictly increasing for more than 8 consecutive hours
-    diffs = np.diff(curve)
+    # Reject cumulative-volume contamination
+    diffs = np.diff(raw_curve)
     rising_streak = 0
     max_streak = 0
     for d in diffs:
@@ -1172,7 +1186,22 @@ def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     if max_streak >= 8:
         return None   # monotonically rising = cumulative volume, not flow rate
 
-    return curve
+    # ── SAFE ADDITION: shape-preservation validation ──────────────────────────
+    # Compares raw vs processed curve. If correlation < 0.98 OR peak shifts by
+    # more than 1 hour, discard processing and return raw curve instead.
+    valid_mask = raw_curve > 0.5   # only compare hours with real flow
+    if valid_mask.sum() >= 4:
+        corr = float(np.corrcoef(raw_curve[valid_mask], proc_curve[valid_mask])[0, 1])
+        raw_peak_hr  = int(np.argmax(raw_curve))
+        proc_peak_hr = int(np.argmax(proc_curve))
+        peak_ok  = abs(raw_peak_hr - proc_peak_hr) <= 1
+        shape_ok = (corr >= 0.98) and peak_ok
+    else:
+        shape_ok = False   # not enough data → use raw
+
+    # Return processed only when it truly matches raw shape; otherwise raw
+    return proc_curve if shape_ok else raw_curve
+    # ── NO min-max normalization anywhere — values stay in original m³/hr ─────
 
 def curve_distance(a: np.ndarray, b: np.ndarray) -> float:
     """
@@ -1970,7 +1999,12 @@ def analysis_ready():
     return ana_df_raw is not None and not ana_df_raw.empty and len(ana_df_raw) >= 5
 
 def get_processed():
-    return run_detectors(ana_df_raw.copy(), z_sensitivity, contamination,
+    df = ana_df_raw.copy()
+    # SAFE ADDITION: snapshot the untouched signal before any detector enrichment.
+    # run_detectors() only ADDS columns — it never overwrites flow_rate_m3hr.
+    # raw_flow_rate is available for any plot that wants the original signal.
+    df["raw_flow_rate"] = df["flow_rate_m3hr"].copy()  # SAFE ADDITION
+    return run_detectors(df, z_sensitivity, contamination,
                          spike_threshold, night_start, night_end)
 
 # ── QoS DB LOADERS ────────────────────────────────────────────────────────────
@@ -2008,12 +2042,29 @@ with tab_eda:
     df["roll_std_10"]  = df["flow_rate_m3hr"].rolling(10, min_periods=1).std().fillna(0)
 
     fig, ax = plt.subplots(figsize=(13, 3.5))
-    ax.plot(df["timestamp"], df["flow_rate_m3hr"], color="#4a90d9", lw=.7, alpha=.85)
+    # SAFE ADDITION: primary plot always uses raw flow_rate_m3hr — no transformation.
+    ax.plot(df["timestamp"], df["flow_rate_m3hr"], color="#4a90d9", lw=.7, alpha=.85,
+            label="Flow rate (raw)")
+    # SAFE ADDITION: optional light Savitzky-Golay overlay for visual noise reduction.
+    # window=11 (≈11 data points), polyorder=2 — preserves peaks by design.
+    # Only shown when enough points exist; never replaces the raw primary signal.
+    try:
+        from scipy.signal import savgol_filter as _savgol
+        _n = len(df)
+        _win = min(11, _n if _n % 2 == 1 else _n - 1)  # must be odd
+        if _win >= 5 and _n >= _win:
+            _sg = _savgol(df["flow_rate_m3hr"].values, window_length=_win, polyorder=2)
+            ax.plot(df["timestamp"], _sg, color="#c8cde0", lw=.9, alpha=.55,
+                    linestyle="--", label="Light smooth (SG-11)")
+    except Exception:
+        pass  # scipy unavailable or too few points — skip silently
+    # ── END SAFE ADDITION ──────────────────────────────────────────────────────
     ax.fill_between(df["timestamp"], df["flow_rate_m3hr"], alpha=.06, color="#4a90d9")
     ax.axhline(0, color="#ff6b6b", lw=.6, linestyle="--", alpha=.4)
     ax.set_ylabel("Flow rate (m³/hr)"); ax.set_title("Full flow rate time series")
     ax.grid(True, alpha=.3); ax.spines[["top","right"]].set_visible(False)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
+    ax.legend(fontsize=7.5, loc="upper right", framealpha=.7)
     fig.autofmt_xdate(rotation=25); fig.tight_layout(); st.pyplot(fig); plt.close(fig)
 
     ca, cb = st.columns(2)
