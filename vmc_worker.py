@@ -670,21 +670,48 @@ def fetch_two_months(year: int = PATTERN_YEAR) -> pd.DataFrame:
 
 def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     """
-    Collapse one day's readings into a 24-point normalised vector.
-    Identical logic to Streamlit normalize_daily_curve().
+    Collapse one day's readings into a 24-point curve.
+    SHAPE-SAFE: returns raw m³/hr values — NOT min-max normalised.
+    Outlier removal uses per-hour IQR clipping (fence=3.0) only.
+    Falls back to raw curve if processed correlation < 0.98.
     """
     day_df = day_df.copy()
     day_df["hour"] = day_df["timestamp"].dt.hour
-    hourly = day_df.groupby("hour")["flow_rate"].mean()
-    curve  = hourly.reindex(range(24), fill_value=0.0).values.astype(float)
 
-    if (curve > 0).sum() < 6:
+    # SAFE ADDITION: per-hour IQR clip — removes intra-hour sensor spikes only.
+    # Does NOT affect inter-hour shape (peaks, valleys, timing).
+    def _iqr_clip_hour(s):
+        if len(s) < 4:
+            return s
+        q1, q3 = s.quantile(0.25), s.quantile(0.75)
+        iqr = q3 - q1
+        fence = 3.0
+        return s.clip(q1 - fence * iqr, q3 + fence * iqr)
+
+    day_df["flow_clipped"] = day_df.groupby("hour")["flow_rate"].transform(_iqr_clip_hour)
+    # ── END SAFE ADDITION ──────────────────────────────────────────────────────
+
+    hourly_raw  = day_df.groupby("hour")["flow_rate"].mean()
+    hourly_proc = day_df.groupby("hour")["flow_clipped"].mean()
+
+    raw_curve  = hourly_raw .reindex(range(24), fill_value=0.0).values.astype(float)
+    proc_curve = hourly_proc.reindex(range(24), fill_value=0.0).values.astype(float)
+
+    if (raw_curve > 0).sum() < 6:
         return None
 
-    mn, mx = curve.min(), curve.max()
-    if mx - mn < 1e-6:
-        return None
-    return (curve - mn) / (mx - mn)
+    # SAFE ADDITION: shape-preservation validation — identical to dashboard version.
+    valid_mask = raw_curve > 0.5
+    if valid_mask.sum() >= 4:
+        corr = float(np.corrcoef(raw_curve[valid_mask], proc_curve[valid_mask])[0, 1])
+        peak_ok  = abs(int(np.argmax(raw_curve)) - int(np.argmax(proc_curve))) <= 1
+        shape_ok = (corr >= 0.98) and peak_ok
+    else:
+        shape_ok = False
+
+    # Return processed only when shape matches; otherwise raw — NO min-max norm.
+    return proc_curve if shape_ok else raw_curve
+    # ── REMOVED: (curve - mn) / (mx - mn) — that was distorting the curve ────
 
 
 def curve_distance(a: np.ndarray, b: np.ndarray) -> float:
