@@ -495,20 +495,19 @@ def _extract(row: dict, fallback_ts: datetime):
     for pk in ["Value","value","flow","Flow","flowRate","flow_rate","reading",
                "val","data","Flow_Rate","FlowRate","instantaneous","rate","FLOW"]:
         if pk in numeric:
-            flow = abs(numeric[pk])
-            if flow > FLOW_RATE_MAX:
+            flow = float(numeric[pk])          # SAFE FIX: removed abs()
+            if abs(flow) > FLOW_RATE_MAX:
                 return None, ts   # cumulative volume field, not a rate — skip
             return flow, ts
 
     nonzero = {k: v for k, v in numeric.items() if v != 0.0}
     if nonzero:
-        flow = abs(next(iter(nonzero.values())))
-        if flow > FLOW_RATE_MAX:
+        flow = float(next(iter(nonzero.values())))   # SAFE FIX: removed abs()
+        if abs(flow) > FLOW_RATE_MAX:
             return None, ts       # cumulative volume field, not a rate — skip
         return flow, ts
-
-    flow = abs(next(iter(numeric.values())))
-    if flow > FLOW_RATE_MAX:
+    flow = float(next(iter(numeric.values())))       # SAFE FIX: removed abs()
+    if abs(flow) > FLOW_RATE_MAX:
         return None, ts           # cumulative volume field, not a rate — skip
     return flow, ts
 
@@ -564,7 +563,7 @@ def _parse_batch_response(data, fallback_ts: datetime) -> list[dict]:
             try:
                 ts   = datetime.utcfromtimestamp(float(pt[0]) / 1000) + IST_OFFSET
                 # FIX: abs() for bidirectional meter
-                flow = abs(float(pt[1]))
+                flow = float(pt[1]) 
                 records.append({"timestamp": ts, "flow_rate": flow})
             except Exception:
                 continue
@@ -582,7 +581,7 @@ def _parse_batch_response(data, fallback_ts: datetime) -> list[dict]:
                 try:
                     ts   = datetime.utcfromtimestamp(float(pt[0]) / 1000) + IST_OFFSET
                     # FIX: abs() for bidirectional meter
-                    flow = abs(float(pt[1]))
+                    flow = float(pt[1])
                     records.append({"timestamp": ts, "flow_rate": flow})
                 except Exception:
                     continue
@@ -808,9 +807,10 @@ def fetch_reading():
                 candidates.sort(key=lambda d: d.get("updated_at",""), reverse=True)
                 if candidates: row = candidates[0]
             if row:
-                try:
+            
                     # FIX: abs() for bidirectional meter
-                    flow = abs(float(row["value"]))
+                try:
+                    flow = float(row["value"])   # SAFE FIX: removed abs()
                 except: flow = None
                 for tk in ["updated_at","created_at"]:
                     raw = row.get(tk,"")
@@ -820,15 +820,13 @@ def fetch_reading():
                             ts = parsed; break
         elif isinstance(data, list) and data and isinstance(data[0], (list, tuple)):
             ts = datetime.utcfromtimestamp(float(data[-1][0])/1000)+IST_OFFSET
-            # FIX: abs() for bidirectional meter
-            flow = abs(float(data[-1][1]))
+            flow = float(data[-1][1])
         elif isinstance(data, dict) and "data" in data:
             pts = data["data"]
             if pts and isinstance(pts[0], dict): flow, ts = _extract(pts[-1], now)
             elif pts:
                 ts = datetime.utcfromtimestamp(float(pts[-1][0])/1000)+IST_OFFSET
-                # FIX: abs() for bidirectional meter
-                flow = abs(float(pts[-1][1]))
+                flow = float(pts[-1][1])         # SAFE FIX: removed abs()
         elif isinstance(data, list) and data and isinstance(data[0], dict):
             flow, ts = _extract(data[-1], now)
         elif isinstance(data, dict):
@@ -842,7 +840,7 @@ def fetch_reading():
 
 # ── ANOMALY — live tab ────────────────────────────────────────────────────────
 def is_anomaly_live(val, history, spike_thresh, z_thresh):
-    if val < 0 or val > spike_thresh:
+    if val < 0 or abs(val) > spike_thresh:   # SAFE FIX: magnitude check
         return True
     # FIX: raise near-zero threshold from 5 to match meter noise floor
     if val < 5 and len(history) >= 5 and np.mean(history[-5:]) > 50:
@@ -890,8 +888,8 @@ def tag_anomalies_batch(records, spike_thresh, z_thresh, night_start, night_end)
         )
 
         anom = (
-            flow < 0
-            or flow > spike_thresh
+            flow < 0                             # SAFE FIX: negative stays as real anomaly
+            or abs(flow) > spike_thresh          # SAFE FIX: magnitude check only
             or (is_night and flow > 5)
             or z_flags[i]
             or supply_cut
@@ -916,7 +914,7 @@ def run_detectors(df, sensitivity, contamination, spike_threshold, night_start, 
     df["in_supply"]   = df["hour"].between(8, 10).astype(int)
     df["is_night"]    = ((df["hour"] >= night_start) | (df["hour"] <= night_end)).astype(int)
 
-    df["anom_spike"]    = (df["flow_rate_m3hr"] > spike_threshold).astype(int)
+    df["anom_spike"]    = (df["flow_rate_m3hr"].abs() > spike_threshold).astype(int)  # SAFE FIX
     df["anom_negative"] = (df["flow_rate_m3hr"] < 0).astype(int)
     NIGHT_FLOW_LIMIT    = spike_threshold * 0.8
     df["anom_night"]    = ((df["is_night"]==1) & (df["flow_rate_m3hr"] > NIGHT_FLOW_LIMIT)).astype(int)
@@ -1048,10 +1046,10 @@ def fetch_two_months(year: int = 2025) -> pd.DataFrame:
                         continue
                     try:
                         ts   = pd.to_datetime(row["timestamp"])
-                        flow = abs(float(row["value"]))
+                        flow = float(row["value"])               # SAFE FIX: removed abs()
                     except Exception:
                         continue
-                    if flow > FLOW_RATE_MAX:
+                    if abs(flow) > FLOW_RATE_MAX:
                         continue
                     chunk_records.append({
                         "timestamp": ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
@@ -1161,8 +1159,7 @@ def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     # limit=2 prevents fabricating long stretches. fillna(0) handles edges only.
     def _fill_curve(arr):
         s = pd.Series(arr)
-        s = s.interpolate(method="linear", limit=2, limit_direction="both")
-        s = s.fillna(0)
+        s = s.fillna(0)      # SAFE FIX: removed interpolate() — no fabricated values
         return s.values
 
     raw_curve  = _fill_curve(raw_curve)
@@ -2479,11 +2476,8 @@ for date_, grp in pat_df_9.groupby("date"):
     grp = grp.copy()
     grp["hour"] = grp["timestamp"].dt.hour
     hourly = (grp.groupby("hour")["flow_rate_m3hr"]
-                 .median()
-                 .reindex(range(24), fill_value=np.nan))
-    # Interpolate small gaps only
-    hourly = hourly.interpolate(method="linear", limit=2,
-                                limit_direction="both").fillna(0)
+                     .mean()                           # SAFE FIX: mean preserves magnitude
+                     .reindex(range(24), fill_value=0.0))  # SAFE FIX: no interpolation
     curve = hourly.values.astype(float)
     # Only include days with meaningful flow
     if curve.max() >= 1.0:
@@ -2503,12 +2497,8 @@ if raw_curves_9 and len(raw_curves_9) >= 1:
                     grp = grp.copy()
                     grp["hour"] = grp["timestamp"].dt.hour
                     hourly = (grp.groupby("hour")["flow_rate_m3hr"]
-                                .median()
-                                .reindex(range(24), fill_value=np.nan))
-                    hourly = (hourly
-                            .interpolate(method="linear", limit=2,
-                                        limit_direction="both")
-                            .fillna(0))
+                                .mean()                           # SAFE FIX: mean preserves magnitude
+                                .reindex(range(24), fill_value=0.0))  # SAFE FIX: no interpolation
                     curve = hourly.values.astype(float)
                     if curve.max() >= 1.0:
                         raw_curves_9[date_str] = curve
@@ -2772,6 +2762,7 @@ else:
     if not today_df.empty:
         today_df_temp = today_df.copy()
         today_df_temp["hour"] = today_df_temp["timestamp"].dt.hour
+# FIND (STEP 4 inside tab_pattern, today_raw_curve build):
         hourly_today = (today_df_temp
                         .groupby("hour")["flow_rate_m3hr"]
                         .median()
@@ -2780,6 +2771,13 @@ else:
                         .interpolate(method="linear", limit=2,
                                      limit_direction="both")
                         .fillna(0))
+        today_raw_curve = hourly_today.values.astype(float)
+
+# REPLACE WITH:
+        hourly_today = (today_df_temp
+                        .groupby("hour")["flow_rate_m3hr"]
+                        .mean()                              # SAFE FIX: no median compression
+                        .reindex(range(24), fill_value=0.0)) # SAFE FIX: no interpolation
         today_raw_curve = hourly_today.values.astype(float)
 
     # ── STEP 3: Margin based on supply hours + today's floor ──────────────
