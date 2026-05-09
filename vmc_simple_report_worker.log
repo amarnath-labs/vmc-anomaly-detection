@@ -1,0 +1,99 @@
+2026-05-09 22:43:25 [INFO] DB ready: C:\Users\amarn\downloads\final3\vmc_readings.db
+2026-05-09 22:43:25 [INFO] VMC Simple Report Worker starting
+2026-05-09 22:43:25 [INFO] Meter: AIB_FT015 | Object: AIB_FT015 | Station: VMC MJP-5445
+2026-05-09 22:43:25 [INFO] Report time: 06:00 IST
+2026-05-09 22:43:25 [INFO] Telegram chats: 1
+2026-05-09 22:43:25 [INFO] Daily report job started
+2026-05-09 22:43:26 [INFO] Login OK via /login
+2026-05-09 22:43:26 [INFO] Fetching 24-hour batch: 2026-05-08 22:43:26.316801 to 2026-05-09 22:43:26.316801
+2026-05-09 22:43:27 [WARNING] Endpoint /ph1/data returned no records
+2026-05-09 22:43:27 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-05-09 22:43:27 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-05-09 22:43:27 [INFO] Endpoint /api/realtime/sensor/Flow/Rate returned 0 rows, 0 non-zero
+2026-05-09 22:43:28 [ERROR] Telegram message failed for 871141199: {"ok":false,"error_code":404,"description":"Not Found"}
+2026-05-09 22:43:28 [ERROR] No data available; report job ended
+2026-05-09 22:43:28 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-09 22:43:28 [INFO] Scheduler running. Press Ctrl+C to stop.
+2026-05-09 22:43:28 [INFO] Added job "run_report_job" to job store "default"
+2026-05-09 22:43:28 [INFO] Scheduler started
+2026-05-09 22:55:09 [INFO] DB ready: C:\Users\amarn\downloads\final3\vmc_readings.db
+2026-05-09 22:55:09 [INFO] VMC Simple Report Worker starting
+2026-05-09 22:55:09 [INFO] Meter: AIB_FT015 | Object: AIB_FT015 | Station: VMC MJP-5445
+2026-05-09 22:55:09 [INFO] Report time: 06:00 IST
+2026-05-09 22:55:09 [INFO] Telegram chats: 1
+2026-05-09 22:55:09 [INFO] Daily report job started
+2026-05-09 22:55:10 [INFO] Login OK via /login
+2026-05-09 22:55:10 [INFO] Fetching 24-hour batch: 2026-05-08 22:55:10.426924 to 2026-05-09 22:55:10.426924
+2026-05-09 22:55:11 [INFO] Endpoint /ph1/data returned 7 rows, 7 non-zero
+2026-05-09 22:55:11 [ERROR] Startup report failed: table readings has no column named anomaly_type
+Traceback (most recent call last):
+  File "C:\Users\amarn\downloads\final3\vmc_worker.py", line 1190, in main
+    run_report_job()
+  File "C:\Users\amarn\downloads\final3\vmc_worker.py", line 1142, in run_report_job
+    db_insert_readings(df)
+  File "C:\Users\amarn\downloads\final3\vmc_worker.py", line 290, in db_insert_readings
+    con.executemany(
+sqlite3.OperationalError: table readings has no column named anomaly_type
+2026-05-09 22:55:11 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-09 22:55:11 [INFO] Scheduler running. Press Ctrl+C to stop.
+2026-05-09 22:55:11 [INFO] Added job "run_report_job" to job store "default"
+2026-05-09 22:55:11 [INFO] Scheduler started
+2026-05-09 23:00:26 [INFO] DB ready: C:\Users\amarn\downloads\final3\vmc_readings.db
+2026-05-09 23:00:26 [INFO] VMC Simple Report Worker starting
+2026-05-09 23:00:26 [INFO] Meter: AIB_FT015 | Object: AIB_FT015 | Station: VMC MJP-5445
+2026-05-09 23:00:26 [INFO] Report time: 06:00 IST
+2026-05-09 23:00:26 [INFO] Telegram chats: 1
+2026-05-09 23:00:26 [INFO] Daily report job started
+2026-05-09 23:00:27 [INFO] Login OK via /login
+2026-05-09 23:00:27 [INFO] Fetching 24-hour batch: 2026-05-08 23:00:27.471922 to 2026-05-09 23:00:27.471922
+2026-05-09 23:00:28 [INFO] Endpoint /ph1/data returned 7 rows, 7 non-zero
+2026-05-09 23:00:28 [ERROR] Startup report failed: table readings has no column named anomaly_type
+Traceback (most recent call last):
+  File "C:\Users\amarn\downloads\final3\vmc_worker.py", line 1190, in main
+    run_report_job()
+  File "C:\Users\amarn\downloads\final3\vmc_worker.py", line 1142, in run_report_job
+    db_insert_readings(df)
+  File "C:\Users\amarn\downloads\final3\vmc_worker.py", line 290, in db_insert_readings
+    con.executemany(
+sqlite3.OperationalError: table readings has no column named anomaly_type
+2026-05-09 23:00:28 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-09 23:00:28 [INFO] Scheduler running. Press Ctrl+C to stop.
+2026-05-09 23:00:28 [INFO] Added job "run_report_job" to job store "default"
+2026-05-09 23:00:28 [INFO] Scheduler started
+2026-05-09 23:04:10 [INFO] DB ready: C:\Users\amarn\downloads\final3\vmc_readings.db
+2026-05-09 23:04:10 [INFO] VMC Simple Report Worker starting
+2026-05-09 23:04:10 [INFO] Meter: AIB_FT015 | Object: AIB_FT015 | Station: VMC MJP-5445
+2026-05-09 23:04:10 [INFO] Report time: 06:00 IST
+2026-05-09 23:04:10 [INFO] Telegram chats: 1
+2026-05-09 23:04:10 [INFO] Daily report job started
+2026-05-09 23:04:10 [INFO] Login OK via /login
+2026-05-09 23:04:10 [INFO] Fetching 24-hour batch: 2026-05-08 23:04:10.965676 to 2026-05-09 23:04:10.965676
+2026-05-09 23:04:11 [INFO] Endpoint /ph1/data returned 7 rows, 7 non-zero
+2026-05-09 23:04:11 [ERROR] Startup report failed: table readings has no column named anomaly_type
+Traceback (most recent call last):
+  File "C:\Users\amarn\downloads\final3\vmc_worker.py", line 1190, in main
+    run_report_job()
+  File "C:\Users\amarn\downloads\final3\vmc_worker.py", line 1142, in run_report_job
+    db_insert_readings(df)
+  File "C:\Users\amarn\downloads\final3\vmc_worker.py", line 290, in db_insert_readings
+    con.executemany(
+sqlite3.OperationalError: table readings has no column named anomaly_type
+2026-05-09 23:04:11 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-09 23:04:11 [INFO] Scheduler running. Press Ctrl+C to stop.
+2026-05-09 23:04:11 [INFO] Added job "run_report_job" to job store "default"
+2026-05-09 23:04:11 [INFO] Scheduler started
+2026-05-09 23:08:02 [INFO] DB ready: C:\Users\amarn\downloads\final3\vmc_readings.db
+2026-05-09 23:08:02 [INFO] VMC Simple Report Worker starting
+2026-05-09 23:08:02 [INFO] Meter: AIB_FT015 | Object: AIB_FT015 | Station: VMC MJP-5445
+2026-05-09 23:08:02 [INFO] Report time: 06:00 IST
+2026-05-09 23:08:02 [INFO] Telegram chats: 1
+2026-05-09 23:08:02 [INFO] Daily report job started
+2026-05-09 23:08:03 [INFO] Login OK via /login
+2026-05-09 23:08:03 [INFO] Fetching 24-hour batch: 2026-05-08 23:08:03.152254 to 2026-05-09 23:08:03.152254
+2026-05-09 23:08:03 [INFO] Endpoint /ph1/data returned 7 rows, 7 non-zero
+2026-05-09 23:08:03 [INFO] Stored 7 readings
+2026-05-09 23:08:07 [INFO] Daily report job complete: POOR - ACTION REQUIRED, QoS 0.0%, 5 issue(s)
+2026-05-09 23:08:07 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-09 23:08:07 [INFO] Scheduler running. Press Ctrl+C to stop.
+2026-05-09 23:08:07 [INFO] Added job "run_report_job" to job store "default"
+2026-05-09 23:08:07 [INFO] Scheduler started

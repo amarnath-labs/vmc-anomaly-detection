@@ -1,49 +1,3 @@
-"""
-VMC Water Flow — Background Worker (Telegram Edition) — BATCH MODE
-
-Run:  python vmc_worker.py
-
-KEY CHANGE from v1:
-  • No per-minute polling. Instead, once every 24 hours the worker
-    fetches the full 24-hour batch from the VMC API in a single call,
-    stores ALL rows into SQLite, runs analysis, and sends the Telegram
-    report + chart.
-  • An optional lightweight "heartbeat" poll (configurable, default OFF)
-    can still store a single reading hourly if you want the Streamlit
-    dashboard to stay warm — set HEARTBEAT_ENABLED = True.
-  • PDF report is now generated and sent via Telegram daily.
-
-KEY ADDITIONS (matching Streamlit dashboard — zero original code removed):
-  • run_full_detectors()   — 4-model anomaly detector (Z-score + IQR +
-                             Isolation Forest + PCA), same logic as tab 3.
-  • forecast_flow()        — exponential smoothing + 95% CI, same as tab 4.
-  • make_eda_charts()      — time series, rolling mean ±2σ, hourly bar,
-                             distribution histogram (tab 2).
-  • make_anomaly_charts()  — model comparison bar, timeline overlay,
-                             model-by-model panel, anomaly heatmap (tab 3).
-  • make_forecast_chart()  — forecast + residuals chart (tab 4).
-  • Pattern analysis block — fetch_two_months(), normalize_daily_curve(),
-                             curve_distance(), find_benchmark_pattern(),
-                             Jan/Feb overlap, K-Means centroids, similarity
-                             bar, best/worst overlay (tab 6).
-  • All new charts are embedded in the PDF and sent via Telegram.
-
-Setup (5 minutes):
-  1. Open Telegram → search @BotFather
-  2. Send:  /newbot
-  3. Give it a name: VMC Monitor Bot
-  4. Give it a username: vmc_mjp4231_bot
-  5. Copy the token → paste in BOT_TOKEN below
-  6. Create a group "VMC MJP-4231 Alerts"
-  7. Add your bot to that group
-  8. Run:  python get_chat_id.py   ← (separate helper script)
-  9. Paste the chat_id in TELEGRAM_CHAT_IDS below
-  10. Done — run this worker!
-
-Dependencies:
-  pip install requests urllib3 apscheduler scipy numpy pandas tzdata reportlab scikit-learn
-"""
-
 import sqlite3
 import time
 import logging
@@ -67,9 +21,10 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 from scipy import stats
 from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
+from scipy.cluster.hierarchy import linkage, fcluster
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -109,8 +64,8 @@ HISTORY_API_PATHS = [
 
 REALTIME_API_PATH = "/api/realtime/sensor/Flow/Rate"
 
-METER_LABEL  = "AIB_FT015"          # human-readable label for PDF/reports
-STATION_NAME = "VMC MJP-5445"      # used in Telegram messages
+METER_LABEL  = "KRL-6136"          # human-readable label for PDF/reports
+STATION_NAME = "VMC.DLP1.KRL.KRL-6136.Tags.FMA"     # used in Telegram messages
 OBJECT_NAME = "AIB_FT015"
 VMC_USER    = "7644881557"
 VMC_PASS    = "5678"
@@ -405,8 +360,29 @@ def send_message(text: str, chat_ids: list = None) -> bool:
 
 
 def send_photo(buf: io.BytesIO, caption: str, chat_ids: list = None) -> bool:
-    log.info("send_photo disabled — skipping: %s", caption)
-    return False
+    if chat_ids is None:
+        chat_ids = TELEGRAM_CHAT_IDS
+    if not chat_ids or "YOUR_BOT_TOKEN_HERE" in BOT_TOKEN:
+        return False
+    success = True
+    for cid in chat_ids:
+        try:
+            buf.seek(0)
+            r = requests.post(
+                f"{TELEGRAM_API}/sendPhoto",
+                data={"chat_id": cid, "caption": caption, "parse_mode": "Markdown"},
+                files={"photo": ("chart.png", buf, "image/png")},
+                timeout=20,
+            )
+            if r.status_code == 200:
+                log.info("Telegram photo sent to %s", cid)
+            else:
+                log.error("Telegram photo error %s: %s", r.status_code, r.text[:200])
+                success = False
+        except Exception as e:
+            log.error("Telegram photo send failed: %s", e)
+            success = False
+    return success
 
 
 def send_pdf(buf: io.BytesIO, filename: str, caption: str,
@@ -447,70 +423,89 @@ def run_full_detectors(df: pd.DataFrame,
                        night_start: int = NIGHT_START_HR,
                        night_end: int = NIGHT_END_HR) -> pd.DataFrame:
     """
-    Runs Z-score, IQR, Isolation Forest, and PCA anomaly detection on df.
-    Identical logic to Streamlit run_detectors() — returns enriched DataFrame
-    with columns: anom_zscore, anom_iqr, anom_iforest, anom_pca, model_vote,
-    final_anomaly, iforest_score, pca_score.
+    Runs robust anomaly detection mirroring Streamlit run_robust_anomaly_models().
+    Uses: MAD-based robust Z-score, IQR, Isolation Forest (RobustScaler), PCA,
+    plus rule-based detectors. Voting via rule_score + ml_score (matches Streamlit Tab 3).
+    Returns enriched DataFrame with columns: anom_zscore, anom_iqr, anom_iforest,
+    anom_pca, rule_score, ml_score, model_vote, final_anomaly, iforest_score, pca_score.
     """
+    SUPPLY_THRESHOLD = 5.0
+
     df = df.copy()
-    df["hour"]         = df["timestamp"].dt.hour
-    df["dow"]          = df["timestamp"].dt.dayofweek
-    df["date"]         = df["timestamp"].dt.date
-    df["roll_mean_10"] = df["flow_rate"].rolling(10, min_periods=1).mean()
-    df["roll_std_10"]  = df["flow_rate"].rolling(10, min_periods=1).std().fillna(0)
-    df["roll_mean_30"] = df["flow_rate"].rolling(30, min_periods=1).mean()
-    df["flow_diff"]    = df["flow_rate"].diff().fillna(0)
-    df["lag_1"]        = df["flow_rate"].shift(1).fillna(0)
-    df["deviation"]    = df["flow_rate"] - df["roll_mean_30"]
-    df["in_supply"]    = df["hour"].between(8, 10).astype(int)
-    df["is_night"]     = ((df["hour"] >= night_start) | (df["hour"] <= night_end)).astype(int)
+    df["hour"]           = df["timestamp"].dt.hour
+    df["dow"]            = df["timestamp"].dt.dayofweek
+    df["date"]           = df["timestamp"].dt.date
+    df["minute_of_day"]  = df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute
+    df["hour_sin"]       = np.sin(2 * np.pi * df["minute_of_day"] / 1440)
+    df["hour_cos"]       = np.cos(2 * np.pi * df["minute_of_day"] / 1440)
+    df["is_night"]       = ((df["hour"] >= night_start) | (df["hour"] <= night_end)).astype(int)
+    df["in_supply"]      = df["hour"].between(8, 10).astype(int)
 
-    df["anom_spike"]    = (df["flow_rate"] > spike_threshold).astype(int)
-    df["anom_negative"] = (df["flow_rate"] < 0).astype(int)
-    NIGHT_FLOW_LIMIT_   = spike_threshold * 0.8
-    df["anom_night"]    = ((df["is_night"] == 1) &
-                           (df["flow_rate"] > NIGHT_FLOW_LIMIT_)).astype(int)
+    df["flow_diff"]      = df["flow_rate"].diff().fillna(0)
+    df["flow_pct_change"]= (df["flow_rate"].pct_change()
+                            .replace([np.inf, -np.inf], 0).fillna(0))
 
-    active = df["flow_rate"] > 0
-    dfa = df[active].copy()
+    df["roll_median_10"] = df["flow_rate"].rolling(10, min_periods=3).median()
+    df["roll_mad_10"]    = (df["flow_rate"]
+                            .rolling(10, min_periods=3)
+                            .apply(lambda x: np.median(np.abs(x - np.median(x))), raw=True)
+                            .fillna(0))
+    df["roll_mean_10"]   = df["flow_rate"].rolling(10, min_periods=1).mean()
+    df["roll_std_10"]    = df["flow_rate"].rolling(10, min_periods=1).std().fillna(0)
+    df["roll_mean_30"]   = df["flow_rate"].rolling(30, min_periods=1).mean()
+    df["lag_1"]          = df["flow_rate"].shift(1).fillna(0)
+    df["deviation"]      = df["flow_rate"] - df["roll_mean_30"]
 
-    # Z-score (supply hours only)
-    supply_hours = dfa[~((dfa["hour"] >= night_start) | (dfa["hour"] <= night_end))]
-    if len(supply_hours) > 10:
-        z_vals = np.abs(stats.zscore(supply_hours["flow_rate"]))
-        supply_hours = supply_hours.copy()
-        supply_hours["anom_z"] = (z_vals > sensitivity).astype(int)
-        dfa["anom_z"] = 0
-        dfa.loc[supply_hours.index, "anom_z"] = supply_hours["anom_z"]
-    else:
-        dfa["anom_z"] = 0
-    df["anom_zscore"] = 0
-    df.loc[dfa.index, "anom_zscore"] = dfa["anom_z"]
+    # Robust Z-score (MAD-based) — mirrors Streamlit
+    df["robust_z"] = (
+        0.6745 * (df["flow_rate"] - df["roll_median_10"])
+        / df["roll_mad_10"].replace(0, np.nan)
+    ).replace([np.inf, -np.inf], 0).fillna(0)
 
-    # IQR
-    if len(dfa) > 3:
+    # Rule-based detectors
+    df["anom_negative"]  = (df["flow_rate"] < 0).astype(int)
+    df["anom_spike"]     = (df["flow_rate"].abs() > spike_threshold).astype(int)
+
+    # Adaptive night flow limit (95th percentile of night readings, min SUPPLY_THRESHOLD)
+    night_ref = df[df["is_night"] == 1]["flow_rate"]
+    night_limit = max(SUPPLY_THRESHOLD, float(night_ref.quantile(0.95))) if len(night_ref) >= 10 else SUPPLY_THRESHOLD
+    df["anom_night"]     = ((df["is_night"] == 1) & (df["flow_rate"] > night_limit)).astype(int)
+
+    df["prev_flow"]      = df["flow_rate"].shift(1).fillna(0)
+    df["anom_supply_cut"]  = ((df["flow_rate"] < SUPPLY_THRESHOLD) &
+                               (df["prev_flow"] > 100)).astype(int)
+    df["anom_sudden_drop"] = ((df["flow_rate"] > SUPPLY_THRESHOLD) &
+                               (df["roll_mean_10"] > 100) &
+                               (df["flow_rate"] < df["roll_mean_10"] * 0.4)).astype(int)
+
+    # Robust Z-score anomaly flag
+    df["anom_zscore"] = (df["robust_z"].abs() > sensitivity).astype(int)
+
+    # IQR on active readings
+    active = df["flow_rate"] > SUPPLY_THRESHOLD
+    dfa    = df[active].copy()
+    df["anom_iqr"] = 0
+    if len(dfa) >= 10:
         Q1, Q3 = dfa["flow_rate"].quantile([0.25, 0.75])
         IQR = Q3 - Q1
         IQR_FENCE = 2.5
-        dfa["anom_iqr_f"] = (
+        df.loc[dfa.index, "anom_iqr"] = (
             (dfa["flow_rate"] < Q1 - IQR_FENCE * IQR) |
             (dfa["flow_rate"] > Q3 + IQR_FENCE * IQR)
         ).astype(int)
-    else:
-        dfa["anom_iqr_f"] = 0
-    df["anom_iqr"] = 0
-    df.loc[dfa.index, "anom_iqr"] = dfa["anom_iqr_f"]
 
-    FEATS = ["flow_rate", "roll_mean_10", "roll_std_10",
-             "flow_diff", "lag_1", "deviation", "hour", "in_supply"]
+    FEATS = [
+        "flow_rate", "flow_diff", "flow_pct_change", "robust_z",
+        "roll_median_10", "roll_mad_10", "hour_sin", "hour_cos", "is_night",
+    ]
 
-    # Isolation Forest
+    # Isolation Forest with RobustScaler (mirrors Streamlit)
     df["anom_iforest"]  = 0
     df["iforest_score"] = 0.0
-    if len(dfa) >= 20:
-        sc   = StandardScaler()
-        Xsc  = sc.fit_transform(dfa[FEATS])
-        ifor = IsolationForest(n_estimators=150, contamination=contamination,
+    if len(dfa) >= 30:
+        X   = dfa[FEATS].replace([np.inf, -np.inf], 0).fillna(0)
+        Xsc = RobustScaler().fit_transform(X)
+        ifor = IsolationForest(n_estimators=200, contamination=contamination,
                                random_state=42)
         preds = ifor.fit_predict(Xsc)
         dfa["anom_if"]  = (preds == -1).astype(int)
@@ -518,68 +513,44 @@ def run_full_detectors(df: pd.DataFrame,
         df.loc[dfa.index, "anom_iforest"]  = dfa["anom_if"]
         df.loc[dfa.index, "iforest_score"] = dfa["if_score"]
 
-    # PCA autoencoder
+    # PCA autoencoder (mirrors Streamlit — uses RobustScaler input)
     df["anom_pca"]  = 0
     df["pca_score"] = 0.0
-    if len(dfa) >= 20:
-        mms = MinMaxScaler()
-        Xn  = mms.fit_transform(dfa[FEATS])
-        pca = PCA(n_components=min(3, len(FEATS)), random_state=42)
-        Xp  = pca.fit_transform(Xn)
+    if len(dfa) >= 30:
+        X   = dfa[FEATS].replace([np.inf, -np.inf], 0).fillna(0)
+        Xsc = RobustScaler().fit_transform(X)
+        pca = PCA(n_components=min(3, Xsc.shape[1]), random_state=42)
+        Xp  = pca.fit_transform(Xsc)
         Xr  = pca.inverse_transform(Xp)
-        err = np.mean((Xn - Xr) ** 2, axis=1)
+        err = np.mean((Xsc - Xr) ** 2, axis=1)
         thr = err.mean() + 3 * err.std()
         dfa["anom_pca_f"] = (err > thr).astype(int)
         dfa["pca_sc"]     = err
         df.loc[dfa.index, "anom_pca"]  = dfa["anom_pca_f"]
         df.loc[dfa.index, "pca_score"] = dfa["pca_sc"]
 
-    df["prev_flow"]        = df["flow_rate"].shift(1).fillna(0)
-    df["anom_supply_cut"]  = ((df["flow_rate"] < 5) &
-                               (df["prev_flow"] > 100)).astype(int)
-    df["anom_sudden_drop"] = ((df["flow_rate"] > 5) &
-                               (df["roll_mean_10"] > 100) &
-                               (df["flow_rate"] < df["roll_mean_10"] * 0.4)).astype(int)
-    df["model_vote"]    = (df["anom_zscore"] + df["anom_iqr"] +
-                           df["anom_iforest"] + df["anom_pca"])
-    df["final_anomaly"] = ((df["anom_negative"]   == 1) |
-                            (df["anom_spike"]      == 1) |
-                            (df["anom_night"]      == 1) |
-                            (df["anom_supply_cut"] == 1) |
-                            (df["anom_sudden_drop"]== 1) |
-                            (df["model_vote"]      >= 3)).astype(int)
+    # Composite scoring — mirrors Streamlit tab 3 exactly
+    df["rule_score"] = (
+        df["anom_negative"] * 5
+        + df["anom_spike"]      * 5
+        + df["anom_night"]      * 3
+        + df["anom_supply_cut"] * 4
+        + df["anom_sudden_drop"]* 4
+    )
+    df["ml_score"] = (
+        df["anom_zscore"]  * 1
+        + df["anom_iqr"]   * 1
+        + df["anom_iforest"]* 2
+        + df["anom_pca"]   * 2
+    )
+    df["model_vote"] = (
+        df["anom_zscore"] + df["anom_iqr"] + df["anom_iforest"] + df["anom_pca"]
+    )
+    df["final_anomaly"] = ((df["rule_score"] >= 3) | (df["ml_score"] >= 3)).astype(int)
     return df
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# FORECAST  (mirrors Streamlit tab 4 forecast())
-# ─────────────────────────────────────────────────────────────────────────────
-def forecast_flow(df: pd.DataFrame,
-                  steps: int = FORECAST_STEPS):
-    """
-    Exponential smoothing forecast with trend + 95% CI.
-    Returns (fcast, lo, hi, fts, sm) or (None,)*5 if insufficient data.
-    Identical logic to Streamlit forecast().
-    """
-    active = df[df["flow_rate"] > 0]["flow_rate"].values
-    if len(active) < 10:
-        return None, None, None, None, None
-    alpha = 0.3
-    sm = [active[0]]
-    for v in active[1:]:
-        sm.append(alpha * v + (1 - alpha) * sm[-1])
-    sm = np.array(sm)
-    n  = min(20, len(sm))
-    trend = (sm[-1] - sm[-n]) / n
-    fcast = np.array([sm[-1] + trend * i for i in range(1, steps + 1)])
-    std   = np.std(active[-30:]) if len(active) >= 30 else np.std(active)
-    diffs = df["timestamp"].diff().dt.total_seconds().median() / 60
-    freq  = max(1, int(diffs)) if not np.isnan(diffs) else 3
-    fts   = pd.date_range(
-        start=df["timestamp"].iloc[-1] + pd.Timedelta(minutes=freq),
-        periods=steps, freq=f"{freq}min",
-    )
-    return fcast, fcast - 1.96 * std, fcast + 1.96 * std, fts, sm
+
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -588,18 +559,20 @@ def forecast_flow(df: pd.DataFrame,
 
 def fetch_two_months(year: int = PATTERN_YEAR) -> pd.DataFrame:
     """
-    Fetch January + February from the VMC API in 7-day chunks.
+    Fetch from January of 'year' up to today from the VMC API in daily chunks.
+    Uses 1-day chunks (mirrors Streamlit fetch_two_months() — more reliable than 7-day).
     Returns a DataFrame with columns [timestamp, flow_rate].
-    Identical logic to Streamlit fetch_two_months().
     """
     jan_start = datetime(year, 1, 1, 0, 0, 0)
-    feb_end   = datetime(year, 2, 28, 23, 59, 59)
+    end_date  = datetime.now()
 
     all_records: list[dict] = []
+    failed_chunks: list[str] = []
     chunk_start = jan_start
 
-    while chunk_start <= feb_end:
-        chunk_end = min(chunk_start + timedelta(days=7), feb_end)
+    while chunk_start <= end_date:
+        chunk_end = min(chunk_start + timedelta(days=1), end_date)
+        chunk_ok  = False
 
         for path in HISTORY_API_PATHS:
             try:
@@ -610,10 +583,10 @@ def fetch_two_months(year: int = PATTERN_YEAR) -> pd.DataFrame:
                         "startTime":  chunk_start.strftime("%Y-%m-%d %H:%M:%S"),
                         "endTime":    chunk_end.strftime("%Y-%m-%d %H:%M:%S"),
                     },
-                    timeout=10,
+                    timeout=30,
                 )
             except Exception as e:
-                log.debug("Pattern fetch [%s]: %s", path, e)
+                log.debug("Pattern fetch [%s] chunk %s: %s", path, chunk_start.date(), e)
                 continue
 
             if r.status_code != 200:
@@ -630,18 +603,30 @@ def fetch_two_months(year: int = PATTERN_YEAR) -> pd.DataFrame:
                 continue
 
             records = _parse_batch_response(data, chunk_end)
-            if len(records) > 1:
+            if records:
                 all_records.extend(records)
-                break   # this path worked — move to next chunk
+                chunk_ok = True
+                break
+
+        if not chunk_ok:
+            failed_chunks.append(chunk_start.strftime("%b %d"))
 
         chunk_start = chunk_end + timedelta(seconds=1)
+
+    if failed_chunks:
+        log.warning("Pattern fetch: no data for %d chunks: %s%s",
+                    len(failed_chunks),
+                    ", ".join(failed_chunks[:10]),
+                    f" ... and {len(failed_chunks)-10} more" if len(failed_chunks) > 10 else "")
 
     if not all_records:
         return pd.DataFrame()
 
     df = pd.DataFrame(all_records)
     df["timestamp"] = pd.to_datetime(df["timestamp"])
-    df = (df.drop_duplicates("timestamp")
+    df["_fr"] = df["flow_rate"].round(3)
+    df = (df.drop_duplicates(["timestamp", "_fr"])
+            .drop(columns=["_fr"])
             .sort_values("timestamp")
             .reset_index(drop=True))
     return df
@@ -652,13 +637,13 @@ def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     Collapse one day's readings into a 24-point curve.
     SHAPE-SAFE: returns raw m³/hr values — NOT min-max normalised.
     Outlier removal uses per-hour IQR clipping (fence=3.0) only.
+    Includes cumulative-volume contamination guard (mirrors Streamlit).
     Falls back to raw curve if processed correlation < 0.98.
     """
     day_df = day_df.copy()
     day_df["hour"] = day_df["timestamp"].dt.hour
 
     # SAFE ADDITION: per-hour IQR clip — removes intra-hour sensor spikes only.
-    # Does NOT affect inter-hour shape (peaks, valleys, timing).
     def _iqr_clip_hour(s):
         if len(s) < 4:
             return s
@@ -668,7 +653,6 @@ def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
         return s.clip(q1 - fence * iqr, q3 + fence * iqr)
 
     day_df["flow_clipped"] = day_df.groupby("hour")["flow_rate"].transform(_iqr_clip_hour)
-    # ── END SAFE ADDITION ──────────────────────────────────────────────────────
 
     hourly_raw  = day_df.groupby("hour")["flow_rate"].mean()
     hourly_proc = day_df.groupby("hour")["flow_clipped"].mean()
@@ -679,7 +663,20 @@ def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     if (raw_curve > 0).sum() < 6:
         return None
 
-    # SAFE ADDITION: shape-preservation validation — identical to dashboard version.
+    # Reject cumulative-volume contamination (mirrors Streamlit)
+    diffs = np.diff(raw_curve)
+    rising_streak = 0
+    max_streak = 0
+    for d in diffs:
+        if d > 0.5:
+            rising_streak += 1
+            max_streak = max(max_streak, rising_streak)
+        else:
+            rising_streak = 0
+    if max_streak >= 8:
+        return None
+
+    # Shape-preservation validation
     valid_mask = raw_curve > 0.5
     if valid_mask.sum() >= 4:
         corr = float(np.corrcoef(raw_curve[valid_mask], proc_curve[valid_mask])[0, 1])
@@ -688,9 +685,7 @@ def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     else:
         shape_ok = False
 
-    # Return processed only when shape matches; otherwise raw — NO min-max norm.
     return proc_curve if shape_ok else raw_curve
-    # ── REMOVED: (curve - mn) / (mx - mn) — that was distorting the curve ────
 
 
 def curve_distance(a: np.ndarray, b: np.ndarray) -> float:
@@ -1127,6 +1122,33 @@ def make_anomaly_charts(df_full: pd.DataFrame) -> list[io.BytesIO]:
     return bufs
 
 
+def forecast_flow(df: pd.DataFrame, steps: int = FORECAST_STEPS):
+    """
+    Exponential smoothing forecast on active flow readings.
+    Mirrors Streamlit forecast() function exactly.
+    Returns (fcast, lo, hi, fts, sm) or (None, None, None, None, None).
+    """
+    active = df[df["flow_rate"] > 5]["flow_rate"].values
+    if len(active) < 10:
+        return None, None, None, None, None
+    alpha = 0.3
+    sm = [active[0]]
+    for v in active[1:]:
+        sm.append(alpha * v + (1 - alpha) * sm[-1])
+    sm = np.array(sm)
+    n = min(20, len(sm))
+    trend = (sm[-1] - sm[-n]) / n
+    fcast = np.array([sm[-1] + trend * i for i in range(1, steps + 1)])
+    std   = np.std(active[-30:]) if len(active) >= 30 else np.std(active)
+    diffs = df["timestamp"].diff().dt.total_seconds().median() / 60
+    freq  = max(1, int(diffs)) if not np.isnan(diffs) else 3
+    fts   = pd.date_range(
+        start=df["timestamp"].iloc[-1] + pd.Timedelta(minutes=freq),
+        periods=steps, freq=f"{freq}min"
+    )
+    return fcast, fcast - 1.96 * std, fcast + 1.96 * std, fts, sm
+
+
 def make_forecast_chart(df: pd.DataFrame,
                          df_full: pd.DataFrame) -> io.BytesIO | None:
     """
@@ -1446,31 +1468,40 @@ def detect_supply_windows(df: pd.DataFrame,
                 "avg":      wdf["flow_rate"].mean(),
             })
     return windows
-def detect_supply_windows_df(day_df, threshold=1.0, min_duration_min=5):
+def detect_supply_windows_df(day_df, threshold=1.0, min_duration_min=5,
+                              min_gap_min=30):
     """
     Mirrors Streamlit detect_supply_windows_df — includes start/end_hour_frac.
-    Used by build_benchmark_from_windows and score_day_vs_benchmark.
+    Adds min_gap_min gap-bridging: brief gaps below threshold within a supply
+    session are tolerated until they exceed min_gap_min minutes (mirrors Streamlit).
     """
     df = day_df.copy().sort_values("timestamp").reset_index(drop=True)
     col = "flow_rate_m3hr" if "flow_rate_m3hr" in df.columns else "flow_rate"
-    windows = []; in_window = False; start_idx = None
+    windows = []; in_window = False; start_idx = None; zero_start = None
     for i, row in df.iterrows():
         if row[col] >= threshold and not in_window:
-            in_window = True; start_idx = i
+            in_window = True; start_idx = i; zero_start = None
         elif row[col] < threshold and in_window:
-            in_window = False
-            wdf = df.iloc[start_idx:i]
-            dur = (wdf["timestamp"].iloc[-1] - wdf["timestamp"].iloc[0]).total_seconds() / 60
-            if dur >= min_duration_min:
-                windows.append({
-                    "start":           wdf["timestamp"].iloc[0],
-                    "end":             wdf["timestamp"].iloc[-1],
-                    "duration":        dur,
-                    "peak":            wdf[col].max(),
-                    "avg":             wdf[col].mean(),
-                    "start_hour_frac": wdf["timestamp"].iloc[0].hour + wdf["timestamp"].iloc[0].minute / 60,
-                    "end_hour_frac":   wdf["timestamp"].iloc[-1].hour + wdf["timestamp"].iloc[-1].minute / 60,
-                })
+            if zero_start is None:
+                zero_start = row["timestamp"]
+            gap_min = (row["timestamp"] - zero_start).total_seconds() / 60
+            if gap_min >= min_gap_min:
+                in_window = False
+                wdf = df.iloc[start_idx:i]
+                dur = (wdf["timestamp"].iloc[-1] - wdf["timestamp"].iloc[0]).total_seconds() / 60
+                if dur >= min_duration_min:
+                    windows.append({
+                        "start":           wdf["timestamp"].iloc[0],
+                        "end":             wdf["timestamp"].iloc[-1],
+                        "duration":        dur,
+                        "peak":            wdf[col].max(),
+                        "avg":             wdf[col].mean(),
+                        "start_hour_frac": wdf["timestamp"].iloc[0].hour + wdf["timestamp"].iloc[0].minute / 60,
+                        "end_hour_frac":   wdf["timestamp"].iloc[-1].hour + wdf["timestamp"].iloc[-1].minute / 60,
+                    })
+                zero_start = None
+        elif row[col] >= threshold and in_window:
+            zero_start = None
     if in_window and start_idx is not None:
         wdf = df.iloc[start_idx:]
         dur = (wdf["timestamp"].iloc[-1] - wdf["timestamp"].iloc[0]).total_seconds() / 60
@@ -1491,12 +1522,37 @@ def build_benchmark_from_windows(all_windows, n_clusters=6):
     """
     Mirrors Streamlit build_benchmark_from_windows.
     Clusters supply windows by start time; dominant cluster median = benchmark.
+    Includes small-n fallback (< 3 windows) — mirrors Streamlit exactly.
     """
-    from scipy.cluster.hierarchy import linkage, fcluster
     if not all_windows:
         return None, {}
     wdf = pd.DataFrame(all_windows)
     starts = wdf["start_hour_frac"].values.reshape(-1, 1)
+
+    if len(wdf) < 3:
+        benchmark = {
+            "start_hour": float(np.median(wdf["start_hour_frac"])),
+            "end_hour":   float(np.median(wdf["end_hour_frac"])),
+            "duration":   float(np.median(wdf["duration"])),
+            "peak":       float(np.median(wdf["peak"])),
+            "avg":        float(np.median(wdf["avg"])),
+            "peak_std":   float(wdf["peak"].std() or 1),
+            "avg_std":    float(wdf["avg"].std() or 1),
+            "start_std":  float(wdf["start_hour_frac"].std() or 0.25),
+            "samples":    len(wdf),
+            "cluster_id": 0,
+            "all_clusters": {0: len(wdf)},
+            # Legacy keys
+            "start_min":    float(np.median(wdf["start_hour_frac"])) * 60,
+            "end_min":      float(np.median(wdf["end_hour_frac"])) * 60,
+            "duration_min": float(np.median(wdf["duration"])),
+            "peak_flow":    float(np.median(wdf["peak"])),
+            "avg_flow":     float(np.median(wdf["avg"])),
+        }
+        benchmark["start_hour"] = max(0.0, min(23.99, benchmark["start_hour"]))
+        benchmark["end_hour"]   = max(0.0, min(23.99, benchmark["end_hour"]))
+        return benchmark, wdf
+
     try:
         Z = linkage(starts, method="ward")
         labels = fcluster(Z, t=1.0, criterion="distance")
@@ -1525,6 +1581,8 @@ def build_benchmark_from_windows(all_windows, n_clusters=6):
         "peak_flow":    float(np.median(dominant_wdf["peak"])),
         "avg_flow":     float(np.median(dominant_wdf["avg"])),
     }
+    benchmark["start_hour"] = max(0.0, min(23.99, benchmark["start_hour"]))
+    benchmark["end_hour"]   = max(0.0, min(23.99, benchmark["end_hour"]))
     return benchmark, wdf
 
 
@@ -2047,21 +2105,24 @@ def make_pdf_report(df: pd.DataFrame, benchmark: dict,
 
         mm_data = [
             ["Method",               "Anomalies Flagged", "Description"],
-            ["Z-score",
+            ["Robust Z-score",
              str(int(df_full.get("anom_zscore",  pd.Series([0])).sum())),
-             "Supply-hour readings > 3σ from mean"],
+             "MAD-based rolling Z (robust, supply hours)"],
             ["IQR",
              str(int(df_full.get("anom_iqr",     pd.Series([0])).sum())),
-             "Beyond Q1 − 2.5×IQR or Q3 + 2.5×IQR fence"],
+             "Beyond Q1 − 2.5×IQR or Q3 + 2.5×IQR fence (active readings)"],
             ["Isolation Forest",
              str(int(df_full.get("anom_iforest", pd.Series([0])).sum())),
-             "Tree-based outlier score (contamination=5%)"],
+             "Tree-based outlier (RobustScaler, 200 trees, contamination=5%)"],
             ["PCA Autoencoder",
              str(int(df_full.get("anom_pca",     pd.Series([0])).sum())),
-             "Reconstruction error > mean + 3σ"],
-            ["Final (3+ / rule)",
+             "Reconstruction error > mean + 3σ (RobustScaler input)"],
+            ["Rule-based (score≥3)",
+             str(int((df_full.get("rule_score", pd.Series([0])) >= 3).sum())),
+             "Spike×5, supply-cut×4, sudden-drop×4, night×3 — any total ≥ 3"],
+            ["Final (rule≥3 / ml≥3)",
              str(int(df_full.get("final_anomaly",pd.Series([0])).sum())),
-             "≥3 models agree, or rule-based (spike / night / drop)"],
+             "Union of rule_score≥3 or ml_score≥3 (mirrors Streamlit Tab 3)"],
         ]
         mm_tbl = Table(mm_data, colWidths=[3.5*cm, 3.5*cm, W - 7*cm])
         mm_tbl.setStyle(TableStyle([
@@ -2151,47 +2212,7 @@ def make_pdf_report(df: pd.DataFrame, benchmark: dict,
             "Service is operating within benchmark parameters.", body_style))
     story.append(Spacer(1, 0.4*cm))
 
-    # ── 7. Forecast Summary (NEW) ─────────────────────────────────────────
-    fc, lo, hi, fts, sm_vals = forecast_flow(df)
-    if fc is not None:
-        story.append(Paragraph(f"{section_num}. Flow Forecast", h1_style))
-        section_num += 1
-        trend_direction = (
-                    '<font color="#27ae60">Increasing</font>'
-                    if fc[-1] > fc[0] else
-                    '<font color="#e74c3c">Decreasing</font>'
-                )
-        story.append(Paragraph(
-            f"Exponential smoothing (\u03b1=0.3) forecast for the next "
-            f"<b>{FORECAST_STEPS} readings</b>. "
-            f"Predicted range: <b>{lo.min():.1f} \u2013 {hi.max():.1f} m\u00b3/hr</b> "
-            f"(95% CI). Trend direction: {trend_direction}.",
-            body_style))
-        story.append(Spacer(1, 0.15*cm))
-        fc_preview = [["Step", "Forecast (m³/hr)", "Lower 95%", "Upper 95%"]]
-        for i in range(min(10, len(fc))):
-            fc_preview.append([
-                str(i + 1),
-                f"{fc[i]:.1f}",
-                f"{lo[i]:.1f}",
-                f"{hi[i]:.1f}",
-            ])
-        fc_tbl = Table(fc_preview, colWidths=[W/4]*4)
-        fc_tbl.setStyle(TableStyle([
-            ("BACKGROUND",   (0,0), (-1,0),  colors.HexColor("#2a6496")),
-            ("TEXTCOLOR",    (0,0), (-1,0),  colors.white),
-            ("FONTNAME",     (0,0), (-1,0),  "Helvetica-Bold"),
-            ("FONTSIZE",     (0,0), (-1,-1), 8),
-            ("ROWBACKGROUNDS",(0,1),(-1,-1),
-             [colors.white, colors.HexColor("#f0f4f8")]),
-            ("GRID",         (0,0), (-1,-1), 0.4, colors.HexColor("#bdc3c7")),
-            ("ALIGN",        (0,0), (-1,-1), "CENTER"),
-            ("VALIGN",       (0,0), (-1,-1), "MIDDLE"),
-            ("PADDING",      (0,0), (-1,-1), 5),
-        ]))
-        story.append(fc_tbl)
-        story.append(Spacer(1, 0.4*cm))
-    section_num += 1 
+ 
 
     # ── 8. Pattern Analysis Summary (NEW) ────────────────────────────────
     if pat_summary:
@@ -2519,9 +2540,8 @@ def _parse_ts(raw: str) -> datetime | None:
     try:
         ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         if ts.tzinfo is not None:
-            # Convert to UTC naive, then add IST offset
-            utc_naive = ts.replace(tzinfo=None) - ts.utcoffset()
-            return utc_naive + IST_OFFSET
+            # Strip tz info, then add IST offset (mirrors Streamlit fix)
+            ts = ts.replace(tzinfo=None) + IST_OFFSET
         # No tzinfo — assume already IST, return as-is
         return ts
     except Exception:
@@ -2977,14 +2997,16 @@ def job_daily_batch_fetch_and_report():
         iq_c = int(df_full["anom_iqr"].sum())
         if_c = int(df_full["anom_iforest"].sum())
         pc_c = int(df_full["anom_pca"].sum())
+        rule_c = int((df_full.get("rule_score", pd.Series([0])) >= 3).sum())
         ensemble_msg = (
-            f"🔬 *4-Model Anomaly Ensemble*\n"
-            f"  • Z-score:          {z_c}\n"
+            f"🔬 *4-Model Anomaly Ensemble (Robust)*\n"
+            f"  • Robust Z-score:   {z_c}\n"
             f"  • IQR:              {iq_c}\n"
             f"  • Isolation Forest: {if_c}\n"
             f"  • PCA Autoencoder:  {pc_c}\n"
-            f"  • ✅ Final (3+/rule): {fa_count}\n"
-            f"_Matches Streamlit Anomaly tab_"
+            f"  • Rule-based:       {rule_c}\n"
+            f"  • ✅ Final (rule≥3 / ml≥3): {fa_count}\n"
+            f"_RobustScaler + MAD-based Z — matches Streamlit Tab 3_"
         )
         send_message(ensemble_msg)
     except Exception as e:
@@ -3223,4 +3245,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    #dhjjjdj
