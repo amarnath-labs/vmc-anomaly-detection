@@ -1,49 +1,6 @@
-"""
-VMC Water Flow — Background Worker (Telegram Edition) — BATCH MODE
 
-Run:  python vmc_worker.py
 
-KEY CHANGE from v1:
-  • No per-minute polling. Instead, once every 24 hours the worker
-    fetches the full 24-hour batch from the VMC API in a single call,
-    stores ALL rows into SQLite, runs analysis, and sends the Telegram
-    report + chart.
-  • An optional lightweight "heartbeat" poll (configurable, default OFF)
-    can still store a single reading hourly if you want the Streamlit
-    dashboard to stay warm — set HEARTBEAT_ENABLED = True.
-  • PDF report is now generated and sent via Telegram daily.
-
-KEY ADDITIONS (matching Streamlit dashboard — zero original code removed):
-  • run_full_detectors()   — 4-model anomaly detector (Z-score + IQR +
-                             Isolation Forest + PCA), same logic as tab 3.
-  • forecast_flow()        — exponential smoothing + 95% CI, same as tab 4.
-  • make_eda_charts()      — time series, rolling mean ±2σ, hourly bar,
-                             distribution histogram (tab 2).
-  • make_anomaly_charts()  — model comparison bar, timeline overlay,
-                             model-by-model panel, anomaly heatmap (tab 3).
-  • make_forecast_chart()  — forecast + residuals chart (tab 4).
-  • Pattern analysis block — fetch_two_months(), normalize_daily_curve(),
-                             curve_distance(), find_benchmark_pattern(),
-                             Jan/Feb overlap, K-Means centroids, similarity
-                             bar, best/worst overlay (tab 6).
-  • All new charts are embedded in the PDF and sent via Telegram.
-
-Setup (5 minutes):
-  1. Open Telegram → search @BotFather
-  2. Send:  /newbot
-  3. Give it a name: VMC Monitor Bot
-  4. Give it a username: vmc_mjp4231_bot
-  5. Copy the token → paste in BOT_TOKEN below
-  6. Create a group "VMC MJP-4231 Alerts"
-  7. Add your bot to that group
-  8. Run:  python get_chat_id.py   ← (separate helper script)
-  9. Paste the chat_id in TELEGRAM_CHAT_IDS below
-  10. Done — run this worker!
-
-Dependencies:
-  pip install requests urllib3 apscheduler scipy numpy pandas tzdata reportlab scikit-learn
-"""
-
+# Built-in modules used for database work, dates, files, logging, and shutdown.
 import sqlite3
 import time
 import logging
@@ -54,6 +11,7 @@ import io
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+# Third-party libraries used for data analysis, API calls, charts, scheduling, and ML.
 import numpy as np
 import pandas as pd
 import requests
@@ -74,6 +32,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # ReportLab imports for PDF generation
+# ReportLab is used to create the daily PDF report.
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import cm
@@ -82,6 +41,7 @@ from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
+# Some VMC HTTPS calls may raise certificate warnings, so the worker hides them from logs.
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -90,14 +50,17 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ─────────────────────────────────────────────────────────────────────────────
 
 # --- Telegram ---
+# Telegram bot token used for sending messages and PDF reports.
 BOT_TOKEN = "8651505010:AAFez7NjjAp31nOSADop22tUAxy3WyYrxdY"
 
+# Chat IDs decide where Telegram alerts and reports are delivered.
 TELEGRAM_CHAT_IDS = [
     "871141199",      # ✅ your personal chat (amar nath)
     #"-5296731596",    # ✅ Anamoly report group
 ]
 
 # --- VMC API ---
+# VMC API connection settings.
 VMC_BASE         = "https://scph1.vmcsmartwater.in:9090"
 
 HISTORY_API_PATHS = [
@@ -116,16 +79,20 @@ VMC_USER    = "7644881557"
 VMC_PASS    = "5678"
 
 # --- SQLite (shared with Streamlit dashboard) ---
+# SQLite database file shared by this worker and the dashboard.
 DB_PATH = "vmc_readings.db"
 
 # --- Batch fetch window (hours) ---
+# Number of hours fetched in one daily batch.
 BATCH_WINDOW_HOURS = 24
 
 # --- Optional hourly heartbeat ---
+# Heartbeat is optional and stores one small reading between daily reports.
 HEARTBEAT_ENABLED     = False
 HEARTBEAT_INTERVAL_HR = 1
 
 # --- Anomaly thresholds ---
+# Simple rule limits used to mark obvious abnormal readings.
 SPIKE_THRESHOLD  = 6000   # adjust based on FMA_5445 max expected flow
 NIGHT_FLOW_LIMIT = 500    # adjust for FMA_5445 night baseline
 Z_THRESHOLD      = 3.0
@@ -134,16 +101,19 @@ NIGHT_END_HR     = 5
 
 
 # --- Full-detector settings (mirrors Streamlit sidebar defaults) ---
+# Settings for the advanced anomaly detector and forecast.
 CONTAMINATION    = 0.05   # Isolation Forest contamination
 Z_SENSITIVITY    = 3.0    # Z-score threshold for full detector
 FORECAST_STEPS   = 30     # Exponential smoothing steps ahead
 
 # --- Pattern analysis settings ---
+# Settings used for Jan-Feb pattern comparison.
 PATTERN_YEAR     = 2026   # Year to fetch Jan–Feb for pattern analysis
 PATTERN_K        = 6      # K-Means clusters
 SIM_THRESHOLD    = 75     # Similarity % threshold for match/deviant
 
 # --- Daily report time (IST) ---
+# Daily report schedule in Indian Standard Time.
 REPORT_HOUR   = 6
 REPORT_MINUTE = 0
 
@@ -151,6 +121,7 @@ REPORT_MINUTE = 0
 # ─────────────────────────────────────────────────────────────────────────────
 # LOGGING
 # ─────────────────────────────────────────────────────────────────────────────
+# Logging sends messages to the screen and to vmc_worker.log.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -161,9 +132,11 @@ logging.basicConfig(
     ],
 )
 log = logging.getLogger("vmc_worker")
+# All report times are handled in Indian Standard Time.
 IST = ZoneInfo("Asia/Kolkata")
 IST_OFFSET = timedelta(hours=5, minutes=30)
 
+# Default chart styling used by all Matplotlib figures.
 plt.rcParams.update({
     "figure.facecolor": "#1a1d27", "axes.facecolor": "#1a1d27",
     "axes.edgecolor": "#2a2d3a",   "axes.labelcolor": "#7a8196",
@@ -172,13 +145,16 @@ plt.rcParams.update({
     "font.family": "sans-serif",   "font.size": 9,
 })
 
+# Telegram API URL built from the bot token above.
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SQLITE
 # ─────────────────────────────────────────────────────────────────────────────
+# Creates the SQLite tables and index if they are missing.
 def init_db():
+    # Open the database file; SQLite creates it automatically if needed.
     con = sqlite3.connect(DB_PATH)
     con.execute("""
         CREATE TABLE IF NOT EXISTS readings (
@@ -227,7 +203,9 @@ def init_db():
     log.info("DB ready: %s", DB_PATH)
 
 
+# Saves many readings at once after the daily API fetch.
 def db_insert_batch(rows: list):
+    # If the API gave no rows, there is nothing to store.
     if not rows:
         return
     con = sqlite3.connect(DB_PATH)
@@ -240,6 +218,7 @@ def db_insert_batch(rows: list):
     log.info("Batch inserted %d rows into DB", len(rows))
 
 
+# Saves one reading, mainly used by the optional heartbeat job.
 def db_insert(ts: datetime, flow: float, anom: int):
     con = sqlite3.connect(DB_PATH)
     con.execute(
@@ -250,6 +229,7 @@ def db_insert(ts: datetime, flow: float, anom: int):
     con.close()
 
 
+# Loads recent readings from SQLite into a pandas DataFrame.
 def db_load_hours(hours: int) -> pd.DataFrame:
     con = sqlite3.connect(DB_PATH)
     since = (datetime.now() - timedelta(hours=hours)).isoformat()
@@ -265,6 +245,7 @@ def db_load_hours(hours: int) -> pd.DataFrame:
     return df
 
 
+# Keeps a small history of reports that were sent.
 def db_log_report(text: str, rtype: str):
     con = sqlite3.connect(DB_PATH)
     con.execute(
@@ -275,6 +256,7 @@ def db_log_report(text: str, rtype: str):
     con.close()
 
 
+# Finds when a report type was last sent.
 def db_last_report_time(rtype: str) -> datetime | None:
     con = sqlite3.connect(DB_PATH)
     row = con.execute(
@@ -285,6 +267,7 @@ def db_last_report_time(rtype: str) -> datetime | None:
     return datetime.fromisoformat(row[0]) if row else None
 
 
+# Stores the daily Quality of Service result for dashboard trends.
 def db_save_qos(date_str: str, qos: float, total_readings: int,
                 total_anomalies: int, spike_anomalies: int,
                 night_anomalies: int, supply_windows: int,
@@ -306,6 +289,7 @@ def db_save_qos(date_str: str, qos: float, total_readings: int,
     log.info("QoS score saved: %s = %.1f%%", date_str, qos)
 
 
+# Stores the benchmark pattern that future reports can compare against.
 def db_save_benchmark_snapshot(benchmark: dict, method: str = "supply_window"):
     """Save the current benchmark so Streamlit can display it."""
     if not benchmark:
@@ -331,6 +315,7 @@ def db_save_benchmark_snapshot(benchmark: dict, method: str = "supply_window"):
     log.info("Benchmark snapshot saved (%s, %d samples)",
              method, benchmark.get("samples", 0))
     
+# Reads the latest seven QoS rows for the trend summary.
 def db_load_7day_trend() -> pd.DataFrame:
     """Load last 7 days of QoS scores for trend table in PDF."""
     con = sqlite3.connect(DB_PATH)
@@ -345,6 +330,7 @@ def db_load_7day_trend() -> pd.DataFrame:
     return df
 
 
+# Builds a normal supply-window benchmark from older stored readings.
 def build_benchmark(con) -> dict | None:
     """Build benchmark from data older than 30 days stored in DB."""
     cutoff = (datetime.now() - timedelta(days=30)).isoformat()
@@ -376,7 +362,9 @@ def build_benchmark(con) -> dict | None:
 # ─────────────────────────────────────────────────────────────────────────────
 # TELEGRAM SENDERS
 # ─────────────────────────────────────────────────────────────────────────────
+# Sends a plain text Telegram message to each configured chat.
 def send_message(text: str, chat_ids: list = None) -> bool:
+    # Use the default chat list unless another list is provided.
     if chat_ids is None:
         chat_ids = TELEGRAM_CHAT_IDS
     if not chat_ids:
@@ -404,11 +392,13 @@ def send_message(text: str, chat_ids: list = None) -> bool:
     return success
 
 
+# Placeholder for photo sending; currently disabled to avoid extra Telegram uploads.
 def send_photo(buf: io.BytesIO, caption: str, chat_ids: list = None) -> bool:
     log.info("send_photo disabled — skipping: %s", caption)
     return False
 
 
+# Sends the generated PDF report as a Telegram document.
 def send_pdf(buf: io.BytesIO, filename: str, caption: str,
              chat_ids: list = None) -> bool:
     """Send PDF document via Telegram."""
@@ -440,6 +430,7 @@ def send_pdf(buf: io.BytesIO, filename: str, caption: str,
 # ─────────────────────────────────────────────────────────────────────────────
 # FULL 4-MODEL ANOMALY DETECTOR  (mirrors Streamlit tab 3 run_detectors())
 # ─────────────────────────────────────────────────────────────────────────────
+# Runs four anomaly checks and combines their votes into one final flag.
 def run_full_detectors(df: pd.DataFrame,
                        sensitivity: float = Z_SENSITIVITY,
                        contamination: float = CONTAMINATION,
@@ -453,6 +444,7 @@ def run_full_detectors(df: pd.DataFrame,
     final_anomaly, iforest_score, pca_score.
     """
     df = df.copy()
+    # Work on a copy so the original DataFrame is not changed unexpectedly.
     df["hour"]         = df["timestamp"].dt.hour
     df["dow"]          = df["timestamp"].dt.dayofweek
     df["date"]         = df["timestamp"].dt.date
@@ -474,6 +466,7 @@ def run_full_detectors(df: pd.DataFrame,
     active = df["flow_rate"] > 0
     dfa = df[active].copy()
 
+    # Method 1: Z-score marks values that are far away from the average.
     # Z-score (supply hours only)
     supply_hours = dfa[~((dfa["hour"] >= night_start) | (dfa["hour"] <= night_end))]
     if len(supply_hours) > 10:
@@ -487,6 +480,7 @@ def run_full_detectors(df: pd.DataFrame,
     df["anom_zscore"] = 0
     df.loc[dfa.index, "anom_zscore"] = dfa["anom_z"]
 
+    # Method 2: IQR marks values outside the usual middle range.
     # IQR
     if len(dfa) > 3:
         Q1, Q3 = dfa["flow_rate"].quantile([0.25, 0.75])
@@ -504,6 +498,7 @@ def run_full_detectors(df: pd.DataFrame,
     FEATS = ["flow_rate", "roll_mean_10", "roll_std_10",
              "flow_diff", "lag_1", "deviation", "hour", "in_supply"]
 
+    # Method 3: Isolation Forest is a machine-learning outlier detector.
     # Isolation Forest
     df["anom_iforest"]  = 0
     df["iforest_score"] = 0.0
@@ -518,6 +513,7 @@ def run_full_detectors(df: pd.DataFrame,
         df.loc[dfa.index, "anom_iforest"]  = dfa["anom_if"]
         df.loc[dfa.index, "iforest_score"] = dfa["if_score"]
 
+    # Method 4: PCA checks whether a reading is hard to rebuild from normal patterns.
     # PCA autoencoder
     df["anom_pca"]  = 0
     df["pca_score"] = 0.0
@@ -540,8 +536,10 @@ def run_full_detectors(df: pd.DataFrame,
     df["anom_sudden_drop"] = ((df["flow_rate"] > 5) &
                                (df["roll_mean_10"] > 100) &
                                (df["flow_rate"] < df["roll_mean_10"] * 0.4)).astype(int)
+    # Count how many models marked each row as unusual.
     df["model_vote"]    = (df["anom_zscore"] + df["anom_iqr"] +
                            df["anom_iforest"] + df["anom_pca"])
+    # Final decision: combine model votes with simple physical rules.
     df["final_anomaly"] = ((df["anom_negative"]   == 1) |
                             (df["anom_spike"]      == 1) |
                             (df["anom_night"]      == 1) |
@@ -554,6 +552,7 @@ def run_full_detectors(df: pd.DataFrame,
 # ─────────────────────────────────────────────────────────────────────────────
 # FORECAST  (mirrors Streamlit tab 4 forecast())
 # ─────────────────────────────────────────────────────────────────────────────
+# Makes a simple future flow estimate using exponential smoothing.
 def forecast_flow(df: pd.DataFrame,
                   steps: int = FORECAST_STEPS):
     """
@@ -586,6 +585,7 @@ def forecast_flow(df: pd.DataFrame,
 # PATTERN ANALYSIS HELPERS  (mirrors Streamlit tab 6 — identical logic)
 # ═════════════════════════════════════════════════════════════════════════════
 
+# Fetches Jan-Feb history from the VMC API for pattern analysis.
 def fetch_two_months(year: int = PATTERN_YEAR) -> pd.DataFrame:
     """
     Fetch January + February from the VMC API in 7-day chunks.
@@ -647,6 +647,7 @@ def fetch_two_months(year: int = PATTERN_YEAR) -> pd.DataFrame:
     return df
 
 
+# Converts one day of readings into a fixed 24-hour curve for comparison.
 def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     """
     Collapse one day's readings into a 24-point curve.
@@ -693,11 +694,13 @@ def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     # ── REMOVED: (curve - mn) / (mx - mn) — that was distorting the curve ────
 
 
+# Measures how different two normalized daily curves are.
 def curve_distance(a: np.ndarray, b: np.ndarray) -> float:
     """Euclidean distance between two 24-point normalised curves."""
     return float(np.sqrt(np.sum((a - b) ** 2)))
 
 
+# Finds the most common daily pattern and compares each day to it.
 def find_benchmark_pattern(df: pd.DataFrame,
                             n_clusters: int = PATTERN_K):
     """
@@ -749,6 +752,7 @@ def find_benchmark_pattern(df: pd.DataFrame,
 # ─────────────────────────────────────────────────────────────────────────────
 # CHART GENERATORS — ORIGINAL (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
+# Builds the main 24-hour flow line chart.
 def make_daily_chart(df: pd.DataFrame) -> io.BytesIO:
     """Generate 24-hr flow chart with anomaly markers. Returns PNG buffer."""
     fig, ax = plt.subplots(figsize=(10, 4))
@@ -781,6 +785,7 @@ def make_daily_chart(df: pd.DataFrame) -> io.BytesIO:
     return buf
 
 
+# Builds a bar chart showing average flow for each hour.
 def make_hourly_bar_chart(df: pd.DataFrame) -> io.BytesIO:
     """Hourly average flow bar chart."""
     df = df.copy()
@@ -810,6 +815,7 @@ def make_hourly_bar_chart(df: pd.DataFrame) -> io.BytesIO:
     return buf
 
 
+# Builds a chart that is inserted into the PDF report.
 def make_pdf_chart(df: pd.DataFrame, benchmark: dict,
                    windows: list, qos: float) -> io.BytesIO:
     """4-panel chart for embedding in PDF (white background)."""
@@ -920,6 +926,7 @@ def make_pdf_chart(df: pd.DataFrame, benchmark: dict,
 # NEW CHART GENERATORS  (matching Streamlit tabs 2, 3, 4, 6)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Creates exploratory charts used to understand the day of data.
 def make_eda_charts(df: pd.DataFrame) -> list[io.BytesIO]:
     """
     EDA charts matching Streamlit tab 2:
@@ -1006,6 +1013,7 @@ def make_eda_charts(df: pd.DataFrame) -> list[io.BytesIO]:
     return bufs
 
 
+# Creates charts that explain what the anomaly models found.
 def make_anomaly_charts(df_full: pd.DataFrame) -> list[io.BytesIO]:
     """
     Anomaly detection charts matching Streamlit tab 3:
@@ -1127,6 +1135,7 @@ def make_anomaly_charts(df_full: pd.DataFrame) -> list[io.BytesIO]:
     return bufs
 
 
+# Creates a chart with forecast values and recent residuals.
 def make_forecast_chart(df: pd.DataFrame,
                          df_full: pd.DataFrame) -> io.BytesIO | None:
     """
@@ -1206,6 +1215,7 @@ def make_forecast_chart(df: pd.DataFrame,
     return buf
 
 
+# Creates charts for Jan-Feb pattern matching and clustering.
 def make_pattern_charts(pat_df: pd.DataFrame,
                          n_clusters: int = PATTERN_K,
                          sim_threshold: float = SIM_THRESHOLD
@@ -1407,6 +1417,7 @@ def make_pattern_charts(pat_df: pd.DataFrame,
 # ─────────────────────────────────────────────────────────────────────────────
 # SUPPLY WINDOW DETECTION + QoS  (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
+# Finds continuous time ranges where water flow looks active.
 def detect_supply_windows(df: pd.DataFrame,
                            threshold=1.0,
                            min_duration_min=5) -> list[dict]:
@@ -1446,6 +1457,7 @@ def detect_supply_windows(df: pd.DataFrame,
                 "avg":      wdf["flow_rate"].mean(),
             })
     return windows
+# A DataFrame-friendly version of supply-window detection for one day.
 def detect_supply_windows_df(day_df, threshold=1.0, min_duration_min=5):
     """
     Mirrors Streamlit detect_supply_windows_df — includes start/end_hour_frac.
@@ -1487,6 +1499,7 @@ def detect_supply_windows_df(day_df, threshold=1.0, min_duration_min=5):
     return windows
 
 
+# Groups many supply windows and chooses a typical benchmark window.
 def build_benchmark_from_windows(all_windows, n_clusters=6):
     """
     Mirrors Streamlit build_benchmark_from_windows.
@@ -1528,6 +1541,7 @@ def build_benchmark_from_windows(all_windows, n_clusters=6):
     return benchmark, wdf
 
 
+# Scores one day by comparing its windows with the benchmark.
 def score_day_vs_benchmark(day_windows, benchmark,
                             time_tol_min=30, flow_tol=0.20):
     """
@@ -1567,6 +1581,7 @@ def score_day_vs_benchmark(day_windows, benchmark,
     qos = min(100, max(0, (t_score * 0.5 + f_score * 0.5) * 100))
     return round(qos, 1), anomalies, best_win
 
+# Calculates the final QoS percentage and anomaly notes.
 def compute_qos(windows: list, benchmark: dict,
                 time_tol=30, flow_tol=0.20) -> tuple[float, list[str]]:
     """Compute QoS score (0-100%) and list anomalies."""
@@ -1628,6 +1643,7 @@ def compute_qos(windows: list, benchmark: dict,
 # PDF REPORT GENERATOR  (original + new EDA / anomaly / forecast / pattern
 #                         sections appended — nothing removed)
 # ─────────────────────────────────────────────────────────────────────────────
+# Builds the full daily PDF report with tables, charts, and summaries.
 def make_pdf_report(df: pd.DataFrame, benchmark: dict,
                     windows: list, qos: float,
                     anomalies: list, total_anom: int,
@@ -2474,6 +2490,7 @@ SESSION.headers.update({
 _token = None
 
 
+# Logs in to the VMC server and keeps the session cookies for later API calls.
 def try_login() -> bool:
     global _token
     if _token:
@@ -2513,6 +2530,7 @@ def try_login() -> bool:
     return False
 
 
+# Converts raw API timestamp text into a Python datetime.
 def _parse_ts(raw: str) -> datetime | None:
     if not raw:
         return None
@@ -2528,6 +2546,7 @@ def _parse_ts(raw: str) -> datetime | None:
         return None
 
 
+# Pulls timestamp and flow values from one API row, even if field names differ.
 def _extract_field(row: dict, fallback_ts: datetime):
     ts = fallback_ts
     for tk in ["DateTime", "dateTime", "timestamp", "time", "Timestamp", "ts"]:
@@ -2555,6 +2574,7 @@ def _extract_field(row: dict, fallback_ts: datetime):
     return next(iter(numeric.values())), ts
 
 
+# Downloads the last 24 hours of readings from the VMC API.
 def fetch_batch_24hr() -> list[dict]:
     global _token
     now   = datetime.now()
@@ -2607,6 +2627,7 @@ def fetch_batch_24hr() -> list[dict]:
     return []
 
 
+# Converts different possible API response shapes into one common row format.
 def _parse_batch_response(data, fallback_ts: datetime) -> list[dict]:
     records = []
     if (isinstance(data, list) and data
@@ -2671,6 +2692,7 @@ def _parse_batch_response(data, fallback_ts: datetime) -> list[dict]:
     return unique
 
 
+# Gets one latest reading for the optional heartbeat.
 def fetch_single_reading() -> dict | None:
     global _token
     now   = datetime.now()
@@ -2708,6 +2730,7 @@ def fetch_single_reading() -> dict | None:
 # ─────────────────────────────────────────────────────────────────────────────
 # ANOMALY DETECTION — simple tagger  (unchanged, used for initial row storage)
 # ─────────────────────────────────────────────────────────────────────────────
+# Adds a simple anomaly flag column using basic threshold rules.
 def tag_anomalies(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["is_anomaly"] = 0
@@ -2727,6 +2750,7 @@ def tag_anomalies(df: pd.DataFrame) -> pd.DataFrame:
 # ─────────────────────────────────────────────────────────────────────────────
 # TELEGRAM TEXT REPORT BUILDER  (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
+# Builds the short Telegram text report for the latest day.
 def build_daily_report(df: pd.DataFrame) -> str:
     now_ist  = datetime.now(IST)
     date_str = now_ist.strftime("%d %b %Y, %H:%M IST")
@@ -2801,7 +2825,9 @@ def build_daily_report(df: pd.DataFrame) -> str:
 # SCHEDULED JOBS
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Main scheduled job: fetch data, analyze it, send reports, and save results.
 def job_daily_batch_fetch_and_report():
+    # This function is intentionally step-by-step so each report stage is easy to trace.
     """
     THE MAIN JOB — runs once per day at REPORT_HOUR:REPORT_MINUTE IST.
 
@@ -3142,6 +3168,7 @@ def job_daily_batch_fetch_and_report():
     )
 
 
+# Optional small job that stores one live reading between daily batch runs.
 def job_heartbeat():
     """Optional heartbeat — keeps Streamlit live tab warm."""
     reading = fetch_single_reading()
@@ -3160,6 +3187,7 @@ def job_heartbeat():
 # ─────────────────────────────────────────────────────────────────────────────
 _scheduler = None
 
+# Stops the scheduler cleanly when the program receives Ctrl+C or a stop signal.
 def _shutdown(signum, frame):
     log.info("Shutting down...")
     if _scheduler:
@@ -3173,7 +3201,9 @@ signal.signal(signal.SIGTERM, _shutdown)
 # ─────────────────────────────────────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────────────────────────────────────
+# Program entry point: initialize everything and start the scheduler.
 def main():
+    # The scheduler object is global so the shutdown handler can stop it later.
     global _scheduler
 
     log.info("════════════════════════════════════")

@@ -564,3 +564,159 @@
 2026-05-10 00:17:36 [INFO] Scheduler running. Next daily batch at 06:00 IST. Ctrl+C to stop.
 2026-05-10 00:17:36 [INFO] Added job "job_daily_batch_fetch_and_report" to job store "default"
 2026-05-10 00:17:36 [INFO] Scheduler started
+2026-05-10 01:18:46 [INFO] ════════════════════════════════════
+2026-05-10 01:18:46 [INFO]   VMC Worker (Batch Mode + Full Analysis) starting
+2026-05-10 01:18:46 [INFO]   DB         : C:\Users\amarn\downloads\final3\vmc_readings.db
+2026-05-10 01:18:46 [INFO]   Batch fetch: every 24 hr (1 API call/day)
+2026-05-10 01:18:46 [INFO]   Report at  : 06:00 IST
+2026-05-10 01:18:46 [INFO]   Heartbeat  : OFF
+2026-05-10 01:18:46 [INFO]   Chats      : 1
+2026-05-10 01:18:46 [INFO]   Pattern yr : 2026  k=6  threshold=75%
+2026-05-10 01:18:46 [INFO] ════════════════════════════════════
+2026-05-10 01:18:46 [INFO] DB ready: vmc_readings.db
+2026-05-10 01:18:46 [INFO] Login OK via /login
+2026-05-10 01:18:46 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-10 01:18:46 [INFO] Running initial batch fetch on startup...
+2026-05-10 01:18:46 [INFO] === Daily batch job started ===
+2026-05-10 01:18:46 [INFO] Fetching 24hr batch: 2026-05-09 01:18 → 2026-05-10 01:18
+2026-05-10 01:18:46 [INFO] Trying endpoint: /ph1/data
+2026-05-10 01:18:47 [INFO] Endpoint /ph1/data — 11 records, 11 non-zero
+2026-05-10 01:18:47 [INFO] Endpoint /ph1/data OK — using 11 non-zero records
+2026-05-10 01:18:47 [INFO] Running robust + median-pattern anomaly detector...
+2026-05-10 01:18:47 [INFO] Robust detector: 4 final anomalies, 0 pattern anomalies, 9 reference days, margin +/- 7.00 m3/hr
+2026-05-10 01:18:47 [INFO] Batch inserted 11 rows into DB
+2026-05-10 01:18:47 [INFO] 24hr filter applied: 11 rows kept for today's analysis
+2026-05-10 01:18:47 [WARNING] No historical benchmark — using hardcoded fallback (24hr continuous supply)
+2026-05-10 01:18:47 [INFO] === QoS DIAGNOSTIC ===
+2026-05-10 01:18:47 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-05-10 01:18:47 [INFO] Windows found: 1
+2026-05-10 01:18:47 [INFO] Total rows: 11
+2026-05-10 01:18:47 [INFO] Flow max=552.0  min=432.0  mean=478.4
+2026-05-10 01:18:47 [INFO] Rows with flow > 1.0: 11
+2026-05-10 01:18:47 [INFO] Rows with flow > 0:   11
+2026-05-10 01:18:47 [INFO] Rows with flow == 0:  0
+2026-05-10 01:18:47 [INFO] Sample timestamps: [Timestamp('2026-05-09 19:43:24.150000'), Timestamp('2026-05-09 20:21:52.170000'), Timestamp('2026-05-09 21:45:25.470000')]
+2026-05-10 01:18:47 [INFO] Sample flow values: [522.0, 552.0, 522.0, 492.0, 462.0, 450.0, 456.0, 432.0, 468.0, 444.0]
+2026-05-10 01:18:47 [INFO] Window 1: start=2026-05-09 19:43:24.150000 end=2026-05-10 00:08:23.110000 dur=265min peak=552.0 avg=478.4
+2026-05-10 01:18:47 [INFO] === END DIAGNOSTIC ===
+2026-05-10 01:18:47 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-05-10 01:18:47 [INFO] Supply windows found: 1
+2026-05-10 01:18:47 [INFO] Flow stats: max=552.0 mean=478.4 zeros=0
+2026-05-10 01:18:48 [INFO] Telegram message sent to 871141199
+2026-05-10 01:18:49 [INFO] Telegram message sent to 871141199
+2026-05-10 01:18:49 [INFO] Daily text report sent
+2026-05-10 01:18:49 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — 24hr flow chart
+2026-05-10 01:18:49 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — Avg flow by hour
+2026-05-10 01:18:49 [INFO] Using robust detector result generated before DB insert
+2026-05-10 01:18:49 [INFO] Full detector: 4 final anomalies, 0 pattern anomalies
+2026-05-10 01:18:50 [INFO] Telegram message sent to 871141199
+2026-05-10 01:18:50 [INFO] Generating EDA charts...
+2026-05-10 01:18:50 [INFO] send_photo disabled — skipping: 📈 EDA: Full flow time series
+2026-05-10 01:18:50 [INFO] send_photo disabled — skipping: 📈 EDA: Rolling mean ± 2σ band
+2026-05-10 01:18:50 [INFO] send_photo disabled — skipping: 📈 EDA: Flow distribution histogram
+2026-05-10 01:18:50 [INFO] EDA charts sent: 3
+2026-05-10 01:18:50 [INFO] Generating anomaly model charts...
+2026-05-10 01:18:51 [INFO] send_photo disabled — skipping: Anomaly: Detector comparison
+2026-05-10 01:18:51 [INFO] send_photo disabled — skipping: Anomaly: Median pattern band + raw flow
+2026-05-10 01:18:51 [INFO] send_photo disabled — skipping: Anomaly: Final flags timeline
+2026-05-10 01:18:51 [INFO] send_photo disabled — skipping: Anomaly: Model-by-model overlay
+2026-05-10 01:18:51 [INFO] send_photo disabled — skipping: Anomaly: Rule-based overlay
+2026-05-10 01:18:51 [INFO] Anomaly charts sent: 5
+2026-05-10 01:18:51 [INFO] Generating forecast chart...
+2026-05-10 01:18:51 [INFO] send_photo disabled — skipping: 📈 Forecast: Exp. smoothing +30 steps ahead
+2026-05-10 01:18:51 [INFO] Forecast chart sent
+2026-05-10 01:18:51 [INFO] Fetching Jan–Feb 2026 for pattern analysis...
+2026-05-10 01:19:03 [INFO] Pattern data: 9899 readings, 59 days
+2026-05-10 01:19:07 [INFO] Benchmark snapshot saved (supply_window_janfeb, 39 samples)
+2026-05-10 01:19:07 [INFO] Jan-Feb box benchmark saved: start=19.77h end=23.73h peak=744.0
+2026-05-10 01:19:07 [INFO] send_photo disabled — skipping: 📐 Pattern: Jan+Feb 2026 multi-day overlay — 59 days + benchmark median
+2026-05-10 01:19:07 [INFO] send_photo disabled — skipping: 📐 Pattern: K-Means clusters (k=6) + benchmark
+2026-05-10 01:19:07 [INFO] send_photo disabled — skipping: 📐 Pattern: Daily similarity (threshold 75%)
+2026-05-10 01:19:07 [INFO] send_photo disabled — skipping: 📐 Pattern: Best-match vs worst-match days
+2026-05-10 01:19:08 [INFO] Telegram message sent to 871141199
+2026-05-10 01:19:08 [INFO] Pattern charts + summary sent
+2026-05-10 01:19:08 [INFO] Generating enhanced PDF report...
+2026-05-10 01:19:11 [INFO] PDF sent to 871141199
+2026-05-10 01:19:11 [INFO] Enhanced PDF report sent
+2026-05-10 01:19:11 [INFO] QoS score saved: 2026-05-10 = 26.3%
+2026-05-10 01:19:11 [INFO] Benchmark snapshot saved (supply_window, 1 samples)
+2026-05-10 01:19:11 [ERROR] Startup batch run failed: table sent_reports has no column named type
+2026-05-10 01:19:11 [INFO] Scheduler running. Next daily batch at 06:00 IST. Ctrl+C to stop.
+2026-05-10 01:19:11 [INFO] Added job "job_daily_batch_fetch_and_report" to job store "default"
+2026-05-10 01:19:11 [INFO] Scheduler started
+2026-05-10 01:26:37 [INFO] ════════════════════════════════════
+2026-05-10 01:26:37 [INFO]   VMC Worker (Batch Mode + Full Analysis) starting
+2026-05-10 01:26:37 [INFO]   DB         : C:\Users\amarn\downloads\final3\vmc_readings.db
+2026-05-10 01:26:37 [INFO]   Batch fetch: every 24 hr (1 API call/day)
+2026-05-10 01:26:37 [INFO]   Report at  : 06:00 IST
+2026-05-10 01:26:37 [INFO]   Heartbeat  : OFF
+2026-05-10 01:26:37 [INFO]   Chats      : 1
+2026-05-10 01:26:37 [INFO]   Pattern yr : 2026  k=6  threshold=75%
+2026-05-10 01:26:37 [INFO] ════════════════════════════════════
+2026-05-10 01:26:37 [INFO] DB ready: vmc_readings.db
+2026-05-10 01:26:38 [INFO] Login OK via /login
+2026-05-10 01:26:38 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-05-10 01:26:38 [INFO] Running initial batch fetch on startup...
+2026-05-10 01:26:38 [INFO] === Daily batch job started ===
+2026-05-10 01:26:38 [INFO] Fetching 24hr batch: 2026-05-09 01:26 → 2026-05-10 01:26
+2026-05-10 01:26:38 [INFO] Trying endpoint: /ph1/data
+2026-05-10 01:26:38 [INFO] Endpoint /ph1/data — 11 records, 11 non-zero
+2026-05-10 01:26:38 [INFO] Endpoint /ph1/data OK — using 11 non-zero records
+2026-05-10 01:26:38 [INFO] Batch inserted 11 rows into DB
+2026-05-10 01:26:38 [INFO] 24hr filter applied: 11 rows kept for today's analysis
+2026-05-10 01:26:38 [WARNING] No historical benchmark — using hardcoded fallback (24hr continuous supply)
+2026-05-10 01:26:38 [INFO] === QoS DIAGNOSTIC ===
+2026-05-10 01:26:38 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-05-10 01:26:38 [INFO] Windows found: 1
+2026-05-10 01:26:38 [INFO] Total rows: 11
+2026-05-10 01:26:38 [INFO] Flow max=552.0  min=432.0  mean=478.4
+2026-05-10 01:26:38 [INFO] Rows with flow > 1.0: 11
+2026-05-10 01:26:38 [INFO] Rows with flow > 0:   11
+2026-05-10 01:26:38 [INFO] Rows with flow == 0:  0
+2026-05-10 01:26:38 [INFO] Sample timestamps: [Timestamp('2026-05-09 19:43:24.150000'), Timestamp('2026-05-09 20:21:52.170000'), Timestamp('2026-05-09 21:45:25.470000')]
+2026-05-10 01:26:38 [INFO] Sample flow values: [522.0, 552.0, 522.0, 492.0, 462.0, 450.0, 456.0, 432.0, 468.0, 444.0]
+2026-05-10 01:26:38 [INFO] Window 1: start=2026-05-09 19:43:24.150000 end=2026-05-10 00:08:23.110000 dur=265min peak=552.0 avg=478.4
+2026-05-10 01:26:38 [INFO] === END DIAGNOSTIC ===
+2026-05-10 01:26:38 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-05-10 01:26:38 [INFO] Supply windows found: 1
+2026-05-10 01:26:38 [INFO] Flow stats: max=552.0 mean=478.4 zeros=0
+2026-05-10 01:26:39 [INFO] Telegram message sent to 871141199
+2026-05-10 01:26:40 [INFO] Telegram message sent to 871141199
+2026-05-10 01:26:40 [INFO] Daily text report sent
+2026-05-10 01:26:40 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — 24hr flow chart
+2026-05-10 01:26:40 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — Avg flow by hour
+2026-05-10 01:26:40 [INFO] Running 4-model anomaly detector...
+2026-05-10 01:26:40 [INFO] Full detector: 0 final anomalies (4-model ensemble)
+2026-05-10 01:26:41 [INFO] Telegram message sent to 871141199
+2026-05-10 01:26:41 [INFO] Generating EDA charts...
+2026-05-10 01:26:41 [INFO] send_photo disabled — skipping: 📈 EDA: Full flow time series
+2026-05-10 01:26:41 [INFO] send_photo disabled — skipping: 📈 EDA: Rolling mean ± 2σ band
+2026-05-10 01:26:41 [INFO] send_photo disabled — skipping: 📈 EDA: Flow distribution histogram
+2026-05-10 01:26:41 [INFO] EDA charts sent: 3
+2026-05-10 01:26:41 [INFO] Generating anomaly model charts...
+2026-05-10 01:26:42 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model comparison
+2026-05-10 01:26:42 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Final flags timeline
+2026-05-10 01:26:42 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model-by-model overlay
+2026-05-10 01:26:42 [INFO] Anomaly charts sent: 3
+2026-05-10 01:26:42 [INFO] Generating forecast chart...
+2026-05-10 01:26:42 [INFO] send_photo disabled — skipping: 📈 Forecast: Exp. smoothing +30 steps ahead
+2026-05-10 01:26:42 [INFO] Forecast chart sent
+2026-05-10 01:26:42 [INFO] Fetching Jan–Feb 2026 for pattern analysis...
+2026-05-10 01:26:54 [INFO] Pattern data: 9899 readings, 59 days
+2026-05-10 01:26:59 [INFO] Benchmark snapshot saved (supply_window_janfeb, 39 samples)
+2026-05-10 01:26:59 [INFO] Jan-Feb box benchmark saved: start=19.77h end=23.73h peak=744.0
+2026-05-10 01:26:59 [INFO] send_photo disabled — skipping: 📐 Pattern: Jan+Feb 2026 multi-day overlay — 59 days + benchmark median
+2026-05-10 01:26:59 [INFO] send_photo disabled — skipping: 📐 Pattern: K-Means clusters (k=6) + benchmark
+2026-05-10 01:26:59 [INFO] send_photo disabled — skipping: 📐 Pattern: Daily similarity (threshold 75%)
+2026-05-10 01:26:59 [INFO] send_photo disabled — skipping: 📐 Pattern: Best-match vs worst-match days
+2026-05-10 01:27:00 [INFO] Telegram message sent to 871141199
+2026-05-10 01:27:00 [INFO] Pattern charts + summary sent
+2026-05-10 01:27:00 [INFO] Generating enhanced PDF report...
+2026-05-10 01:27:04 [INFO] PDF sent to 871141199
+2026-05-10 01:27:04 [INFO] Enhanced PDF report sent
+2026-05-10 01:27:04 [INFO] QoS score saved: 2026-05-10 = 26.3%
+2026-05-10 01:27:04 [INFO] Benchmark snapshot saved (supply_window, 1 samples)
+2026-05-10 01:27:04 [ERROR] Startup batch run failed: table sent_reports has no column named type
+2026-05-10 01:27:04 [INFO] Scheduler running. Next daily batch at 06:00 IST. Ctrl+C to stop.
+2026-05-10 01:27:04 [INFO] Added job "job_daily_batch_fetch_and_report" to job store "default"
+2026-05-10 01:27:04 [INFO] Scheduler started
