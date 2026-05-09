@@ -1990,7 +1990,7 @@ with tab_eda:
         else:   st.success("✅ No low-supply days detected")
 
 # ═════════════════════════════════════════════════════════════════════════════
-# TAB 3 — ANOMALY DETECTION WITH MEDIAN PATTERN BASELINE
+# TAB 3 — ANOMALY DETECTION, LAST 24H ONLY, WITH MEDIAN PATTERN BASELINE
 # ═════════════════════════════════════════════════════════════════════════════
 with tab_anom:
     if not analysis_ready():
@@ -2006,22 +2006,21 @@ with tab_anom:
         df_out = df_in.copy()
         if "flow_rate" in df_out.columns and "flow_rate_m3hr" not in df_out.columns:
             df_out = df_out.rename(columns={"flow_rate": "flow_rate_m3hr"})
-        df_out["timestamp"] = pd.to_datetime(df_out["timestamp"], format="mixed")
+        df_out["timestamp"] = pd.to_datetime(df_out["timestamp"], format="mixed", errors="coerce")
+        df_out["flow_rate_m3hr"] = pd.to_numeric(df_out["flow_rate_m3hr"], errors="coerce")
         df_out = df_out.dropna(subset=["timestamp", "flow_rate_m3hr"])
-        df_out = df_out.sort_values("timestamp").reset_index(drop=True)
-        return df_out
+        return df_out.sort_values("timestamp").reset_index(drop=True)
+
+    def _empty_baseline():
+        return pd.DataFrame(columns=["tod_bin", "median", "lower", "upper", "ref_days", "hour_frac"])
 
     def build_median_pattern_baseline(ref_df: pd.DataFrame):
         ref_df = _prepare_flow_df(ref_df)
-
         if ref_df.empty:
-            return pd.DataFrame(), 0.0, 0
+            return _empty_baseline(), 0.0, 0
 
         ref_df["date"] = ref_df["timestamp"].dt.date
-        ref_df["minute_of_day"] = (
-            ref_df["timestamp"].dt.hour * 60
-            + ref_df["timestamp"].dt.minute
-        )
+        ref_df["minute_of_day"] = ref_df["timestamp"].dt.hour * 60 + ref_df["timestamp"].dt.minute
         ref_df["tod_bin"] = (ref_df["minute_of_day"] // BIN_MIN) * BIN_MIN
 
         daily_bins = (
@@ -2043,7 +2042,6 @@ with tab_anom:
 
         active_ref = daily_bins[daily_bins["flow_rate_m3hr"] > SUPPLY_THRESHOLD]["flow_rate_m3hr"]
         supply_avg = float(active_ref.mean()) if not active_ref.empty else float(daily_bins["flow_rate_m3hr"].mean())
-
         if np.isnan(supply_avg):
             supply_avg = 0.0
 
@@ -2057,16 +2055,23 @@ with tab_anom:
     def attach_pattern_anomaly(df_current: pd.DataFrame, baseline: pd.DataFrame) -> pd.DataFrame:
         dfp = df_current.copy()
 
-        dfp["minute_of_day"] = (
-            dfp["timestamp"].dt.hour * 60
-            + dfp["timestamp"].dt.minute
-        )
+        dfp["minute_of_day"] = dfp["timestamp"].dt.hour * 60 + dfp["timestamp"].dt.minute
         dfp["tod_bin"] = (dfp["minute_of_day"] // BIN_MIN) * BIN_MIN
         dfp["hour_frac"] = (
             dfp["timestamp"].dt.hour
             + dfp["timestamp"].dt.minute / 60
             + dfp["timestamp"].dt.second / 3600
         )
+
+        if baseline is None or baseline.empty:
+            dfp["median"] = np.nan
+            dfp["lower"] = np.nan
+            dfp["upper"] = np.nan
+            dfp["ref_days"] = 0
+            dfp["anom_pattern"] = 0
+            dfp["pattern_direction"] = "No baseline"
+            dfp["pattern_deviation"] = np.nan
+            return dfp
 
         dfp = dfp.merge(
             baseline[["tod_bin", "median", "lower", "upper", "ref_days"]],
@@ -2090,12 +2095,12 @@ with tab_anom:
         ).astype(int)
 
         dfp["pattern_direction"] = np.where(
-            dfp["flow_rate_m3hr"] > dfp["upper"],
-            "Above median band",
-            np.where(dfp["flow_rate_m3hr"] < dfp["lower"], "Below median band", "Normal"),
+            dfp["anom_pattern"].eq(0),
+            "Normal",
+            np.where(dfp["flow_rate_m3hr"] > dfp["upper"], "Above median band", "Below median band"),
         )
-
         dfp["pattern_deviation"] = dfp["flow_rate_m3hr"] - dfp["median"]
+
         return dfp
 
     def run_robust_anomaly_models(df_in: pd.DataFrame) -> pd.DataFrame:
@@ -2103,17 +2108,14 @@ with tab_anom:
         df["raw_flow_rate"] = df["flow_rate_m3hr"].copy()
 
         df["hour"] = df["timestamp"].dt.hour
-        df["dow"] = df["timestamp"].dt.dayofweek
         df["minute_of_day"] = df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute
         df["hour_sin"] = np.sin(2 * np.pi * df["minute_of_day"] / 1440)
         df["hour_cos"] = np.cos(2 * np.pi * df["minute_of_day"] / 1440)
-
         df["is_night"] = ((df["hour"] >= night_start) | (df["hour"] <= night_end)).astype(int)
 
         df["flow_diff"] = df["flow_rate_m3hr"].diff().fillna(0)
         df["flow_pct_change"] = (
-            df["flow_rate_m3hr"]
-            .pct_change()
+            df["flow_rate_m3hr"].pct_change()
             .replace([np.inf, -np.inf], 0)
             .fillna(0)
         )
@@ -2141,19 +2143,10 @@ with tab_anom:
 
         night_ref = df[df["is_night"] == 1]["flow_rate_m3hr"]
         night_limit = max(SUPPLY_THRESHOLD, float(night_ref.quantile(0.95))) if len(night_ref) >= 10 else SUPPLY_THRESHOLD
-
-        df["anom_night"] = (
-            (df["is_night"] == 1)
-            & (df["flow_rate_m3hr"] > night_limit)
-        ).astype(int)
+        df["anom_night"] = ((df["is_night"] == 1) & (df["flow_rate_m3hr"] > night_limit)).astype(int)
 
         df["prev_flow"] = df["flow_rate_m3hr"].shift(1).fillna(0)
-
-        df["anom_supply_cut"] = (
-            (df["flow_rate_m3hr"] < SUPPLY_THRESHOLD)
-            & (df["prev_flow"] > 100)
-        ).astype(int)
-
+        df["anom_supply_cut"] = ((df["flow_rate_m3hr"] < SUPPLY_THRESHOLD) & (df["prev_flow"] > 100)).astype(int)
         df["anom_sudden_drop"] = (
             (df["flow_rate_m3hr"] > SUPPLY_THRESHOLD)
             & (df["roll_mean_10"] > 100)
@@ -2169,61 +2162,40 @@ with tab_anom:
         if len(dfa) >= 10:
             q1, q3 = dfa["flow_rate_m3hr"].quantile([0.25, 0.75])
             iqr = q3 - q1
-            lo = q1 - 2.5 * iqr
-            hi = q3 + 2.5 * iqr
-            df.loc[dfa.index, "anom_iqr"] = (
-                (dfa["flow_rate_m3hr"] < lo)
-                | (dfa["flow_rate_m3hr"] > hi)
-            ).astype(int)
-
-        feats = [
-            "flow_rate_m3hr",
-            "flow_diff",
-            "flow_pct_change",
-            "robust_z",
-            "roll_median_10",
-            "roll_mad_10",
-            "hour_sin",
-            "hour_cos",
-            "is_night",
-        ]
+            lo, hi = q1 - 2.5 * iqr, q3 + 2.5 * iqr
+            df.loc[dfa.index, "anom_iqr"] = ((dfa["flow_rate_m3hr"] < lo) | (dfa["flow_rate_m3hr"] > hi)).astype(int)
 
         df["anom_iforest"] = 0
         df["iforest_score"] = 0.0
-
         df["anom_pca"] = 0
         df["pca_score"] = 0.0
 
+        feats = [
+            "flow_rate_m3hr", "flow_diff", "flow_pct_change", "robust_z",
+            "roll_median_10", "roll_mad_10", "hour_sin", "hour_cos", "is_night",
+        ]
+
         if len(dfa) >= 30:
             X = dfa[feats].replace([np.inf, -np.inf], 0).fillna(0)
+            Xs = RobustScaler().fit_transform(X)
 
-            scaler = RobustScaler()
-            Xs = scaler.fit_transform(X)
-
-            ifor = IsolationForest(
-                n_estimators=200,
-                contamination=contamination,
-                random_state=42,
-            )
+            ifor = IsolationForest(n_estimators=200, contamination=contamination, random_state=42)
             if_preds = ifor.fit_predict(Xs)
-            if_score = -ifor.decision_function(Xs)
-
             df.loc[dfa.index, "anom_iforest"] = (if_preds == -1).astype(int)
-            df.loc[dfa.index, "iforest_score"] = if_score
+            df.loc[dfa.index, "iforest_score"] = -ifor.decision_function(Xs)
 
             pca = PCA(n_components=min(3, Xs.shape[1]), random_state=42)
             Xp = pca.fit_transform(Xs)
             Xr = pca.inverse_transform(Xp)
             err = np.mean((Xs - Xr) ** 2, axis=1)
-
             pca_thr = err.mean() + 3 * err.std()
+
             df.loc[dfa.index, "anom_pca"] = (err > pca_thr).astype(int)
             df.loc[dfa.index, "pca_score"] = err
 
         return df
 
-    with st.spinner("Running rule-based, ML, and median-pattern anomaly detection..."):
-        # Analyse only the latest 24 hours
+    with st.spinner("Running last-24h rule, ML, and median-pattern anomaly detection..."):
         eval_end = datetime.now()
         eval_start = eval_end - timedelta(hours=24)
 
@@ -2239,9 +2211,7 @@ with tab_anom:
 
         df = run_robust_anomaly_models(current_df)
 
-
         pattern_source = None
-
         if st.session_state.get("pattern_df") is not None:
             pattern_source = st.session_state.pattern_df.copy()
         else:
@@ -2253,28 +2223,22 @@ with tab_anom:
             pattern_source = db_load(hours_back=24 * 60)
 
         if pattern_source is None or pattern_source.empty:
-            baseline = pd.DataFrame()
+            baseline = _empty_baseline()
             pattern_margin = 0.0
             ref_days = 0
-            df["anom_pattern"] = 0
-            df["median"] = np.nan
-            df["lower"] = np.nan
-            df["upper"] = np.nan
-            df["pattern_direction"] = "No baseline"
-            df["pattern_deviation"] = np.nan
+            df = attach_pattern_anomaly(df, baseline)
         else:
             pattern_source = _prepare_flow_df(pattern_source)
-
-            # Build median baseline only from history before the 24h evaluation window
-            ref_df = pattern_source[
-                pattern_source["timestamp"] < eval_start
-            ].copy()
+            ref_df = pattern_source[pattern_source["timestamp"] < eval_start].copy()
 
             if ref_df.empty:
+                baseline = _empty_baseline()
+                pattern_margin = 0.0
+                ref_days = 0
                 st.warning("No historical data before the last 24h window. Median-pattern baseline unavailable.")
+            else:
+                baseline, pattern_margin, ref_days = build_median_pattern_baseline(ref_df)
 
-
-            baseline, pattern_margin, ref_days = build_median_pattern_baseline(ref_df)
             df = attach_pattern_anomaly(df, baseline)
 
         df["rule_score"] = (
@@ -2301,18 +2265,14 @@ with tab_anom:
             + df["anom_pattern"]
         )
 
-        df["final_anomaly"] = (
-            (df["rule_score"] >= 3)
-            | (df["ml_score"] >= 3)
-        ).astype(int)
+        df["final_anomaly"] = ((df["rule_score"] >= 3) | (df["ml_score"] >= 3)).astype(int)
 
     total = int(df["final_anomaly"].sum())
-    pattern_total = int(df["anom_pattern"].sum()) if "anom_pattern" in df.columns else 0
+    pattern_total = int(df["anom_pattern"].sum())
 
     st.markdown(
         f"<div style='font-size:.8rem;color:#555d6e;margin-bottom:12px'>"
         f"Last 24h only · {len(df):,} readings analysed · {total:,} final anomalies · "
-
         f"{pattern_total:,} median-pattern anomalies · "
         f"{ref_days} reference days · margin ±{pattern_margin:.2f} m³/hr"
         f"</div>",
@@ -2332,106 +2292,53 @@ with tab_anom:
     fig, ax = plt.subplots(figsize=(10, 3.8))
     colors = ["#e74c3c", "#ffa94d", "#ff6b6b", "#8b949e", "#3fb950", "#9b8ec4", "#4a90d9"]
     bars = ax.bar(list(mcounts.keys()), list(mcounts.values()), color=colors, width=0.55, zorder=3)
-
     for bar, v in zip(bars, mcounts.values()):
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + 0.3,
-            str(v),
-            ha="center",
-            va="bottom",
-            fontsize=9,
-            color="#c8cde0",
-        )
-
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.3, str(v),
+                ha="center", va="bottom", fontsize=9, color="#c8cde0")
     ax.set_ylabel("Count")
-    ax.set_title("Anomalies by detector")
+    ax.set_title("Anomalies by detector - last 24h")
     ax.grid(True, alpha=0.3, axis="y")
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
     st.pyplot(fig)
     plt.close(fig)
 
+    # ── Pattern band + raw flow, timestamp-based so midnight does not wrap ──
     st.markdown(
         "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:18px 0 6px'>"
-        "Median Pattern Band + Raw Flow Anomalies</div>",
+        "Median Pattern Band + Last 24h Raw Flow Anomalies</div>",
         unsafe_allow_html=True,
     )
 
-    fig, ax = plt.subplots(figsize=(13, 4.5))
+    plot_df = df.copy().sort_values("timestamp").reset_index(drop=True)
+    pat = plot_df[plot_df["anom_pattern"] == 1]
 
-    if "baseline" in locals() and baseline is not None and not baseline.empty:
-        ax.fill_between(
-            baseline["hour_frac"],
-            baseline["lower"],
-            baseline["upper"],
-            alpha=0.30,
-            color="#4a90d9",
-            label=f"Median margin band ±{pattern_margin:.1f} m³/hr",
-        )
+    fig, ax = plt.subplots(figsize=(13, 4.8))
 
-        ax.plot(
-            baseline["hour_frac"],
-            baseline["median"],
-            color="#e74c3c",
-            lw=2.0,
-            label="Median baseline",
-            zorder=5,
-        )
+    if {"median", "lower", "upper"}.issubset(plot_df.columns):
+        ax.fill_between(plot_df["timestamp"], plot_df["lower"], plot_df["upper"],
+                        color="#4a90d9", alpha=0.22, label="Median margin band", zorder=1)
+        ax.plot(plot_df["timestamp"], plot_df["median"],
+                color="#e74c3c", lw=1.4, label="Median baseline", zorder=3)
 
-    ax.plot(
-        df["hour_frac"],
-        df["raw_flow_rate"],
-        color="#3fb950",
-        lw=1.1,
-        alpha=0.9,
-        label="Raw flow",
-        zorder=6,
-    )
+    ax.plot(plot_df["timestamp"], plot_df["raw_flow_rate"],
+            color="#3fb950", lw=1.3, alpha=0.95, label="Last 24h raw flow", zorder=5)
 
-    pat = df[df["anom_pattern"] == 1]
     if not pat.empty:
-        ax.scatter(
-            pat["hour_frac"],
-            pat["raw_flow_rate"],
-            color="#ff6b6b",
-            s=35,
-            zorder=8,
-            label=f"Pattern anomalies ({len(pat)})",
-        )
+        ax.scatter(pat["timestamp"], pat["raw_flow_rate"], color="#ff6b6b", s=45,
+                   edgecolors="#ffd1d1", linewidths=0.6, zorder=8,
+                   label=f"Pattern anomalies ({len(pat)})")
 
-    ax.axhline(0, color="#555d6e", lw=0.6, linestyle=":", alpha=0.5)
-    ax.set_xlim(0, 24)
-    ax.set_xticks(range(0, 25, 2))
-    ax.set_xlabel("Hour of day")
+    ax.axhline(0, color="#8b949e", lw=0.7, linestyle=":", alpha=0.7)
+    flow_min, flow_max = float(plot_df["raw_flow_rate"].min()), float(plot_df["raw_flow_rate"].max())
+    band_min = float(plot_df["lower"].min()) if "lower" in plot_df.columns else flow_min
+    band_max = float(plot_df["upper"].max()) if "upper" in plot_df.columns else flow_max
+    y_low = min(flow_min, band_min, 0) - 2
+    y_high = max(flow_max, band_max, 10) + 2
+    ax.set_ylim(y_low, y_high)
     ax.set_ylabel("Flow rate (m³/hr)")
-    ax.set_title("Raw Flow vs 2-Month Median Pattern")
+    ax.set_title("Raw Flow vs 2-Month Median Pattern - Last 24h")
     ax.legend(fontsize=8, loc="upper right", ncol=2)
-    ax.grid(True, alpha=0.3)
-    ax.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)
-
-    fig, ax = plt.subplots(figsize=(13, 3.8))
-    ax.plot(df["timestamp"], df["raw_flow_rate"], color="#4a90d9", lw=0.7, alpha=0.75, label="Flow raw")
-
-    fa = df[df["final_anomaly"] == 1]
-    ax.scatter(
-        fa["timestamp"],
-        fa["raw_flow_rate"],
-        color="#ff6b6b",
-        s=30,
-        zorder=6,
-        marker="^",
-        label=f"Final anomaly ({len(fa)})",
-    )
-
-    ax.axhline(spike_threshold, color="#ffa94d", lw=0.8, linestyle="--", alpha=0.6, label="Spike limit")
-    ax.axhline(0, color="#555d6e", lw=0.5, linestyle=":", alpha=0.4)
-    ax.set_ylabel("m³/hr")
-    ax.set_title("Final anomaly flags")
-    ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
     ax.spines[["top", "right"]].set_visible(False)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
@@ -2440,9 +2347,58 @@ with tab_anom:
     st.pyplot(fig)
     plt.close(fig)
 
+    # ── Final anomaly graph ─────────────────────────────────────────────────
     st.markdown(
-        "<div style='font-size:.85rem;color:#c8cde0;margin:12px 0 6px'>"
-        "Model-by-model overlay</div>",
+        "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:18px 0 6px'>"
+        "Final Anomaly Flags - Last 24h Raw Flow</div>",
+        unsafe_allow_html=True,
+    )
+
+    fa = plot_df[plot_df["final_anomaly"] == 1]
+
+    fig, ax = plt.subplots(figsize=(13, 4.8))
+
+    if {"median", "lower", "upper"}.issubset(plot_df.columns):
+        ax.fill_between(plot_df["timestamp"], plot_df["lower"], plot_df["upper"],
+                        color="#4a90d9", alpha=0.18, label="Median margin band", zorder=1)
+        ax.plot(plot_df["timestamp"], plot_df["median"],
+                color="#e74c3c", lw=1.2, alpha=0.85, label="Median baseline", zorder=3)
+
+    ax.plot(plot_df["timestamp"], plot_df["raw_flow_rate"],
+            color="#4a90d9", lw=1.3, alpha=0.95, label="Raw flow", zorder=5)
+
+    if not fa.empty:
+        ax.scatter(fa["timestamp"], fa["raw_flow_rate"], color="#ff6b6b", s=55,
+                   marker="^", edgecolors="#ffd1d1", linewidths=0.7,
+                   zorder=8, label=f"Final anomaly ({len(fa)})")
+
+    pad = max(2.0, (max(flow_max, band_max) - min(flow_min, band_min)) * 0.15)
+    y_low = min(flow_min, band_min, 0) - pad
+    y_high = max(flow_max, band_max, 10) + pad
+    ax.set_ylim(y_low, y_high)
+
+    if y_low <= spike_threshold <= y_high:
+        ax.axhline(spike_threshold, color="#ffa94d", lw=0.9, linestyle="--",
+                   alpha=0.8, label=f"Spike limit ({spike_threshold})")
+    else:
+        ax.text(0.01, 0.96, f"Spike limit {spike_threshold} m³/hr is outside visible range",
+                transform=ax.transAxes, color="#ffa94d", fontsize=8, va="top")
+
+    ax.axhline(0, color="#8b949e", lw=0.7, linestyle=":", alpha=0.7)
+    ax.set_ylabel("Flow rate (m³/hr)")
+    ax.set_title("Final Anomaly Flags - Last 24h")
+    ax.legend(fontsize=8, loc="upper right", ncol=2)
+    ax.grid(True, alpha=0.3)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
+    fig.autofmt_xdate(rotation=25)
+    fig.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+    # ── Individual detector overlay plots ───────────────────────────────────────
+    st.markdown(
+        "<div style='font-size:.85rem;color:#c8cde0;margin:18px 0 6px'>"
+        "Individual Detector Overlays - Last 24h</div>",
         unsafe_allow_html=True,
     )
 
@@ -2450,16 +2406,113 @@ with tab_anom:
     model_labels = ["Median Pattern", "Robust Z", "IQR", "Isolation Forest", "PCA"]
     model_colors = ["#e74c3c", "#ffa94d", "#ff6b6b", "#8b949e", "#3fb950"]
 
-    fig, axes = plt.subplots(5, 1, figsize=(13, 13), sharex=True, gridspec_kw={"hspace": 0.45})
+    fig, axes = plt.subplots(
+        len(model_cols),
+        1,
+        figsize=(13, 13),
+        sharex=True,
+        gridspec_kw={"hspace": 0.45},
+    )
 
     for ax, col, lbl, clr in zip(axes, model_cols, model_labels, model_colors):
-        ax.plot(df["timestamp"], df["raw_flow_rate"], color="#4a90d9", lw=0.4, alpha=0.5)
-        fl = df[df[col] == 1]
-        ax.scatter(fl["timestamp"], fl["raw_flow_rate"], color=clr, s=18, zorder=6, label=f"{lbl} ({len(fl)})")
+        ax.plot(
+            plot_df["timestamp"],
+            plot_df["raw_flow_rate"],
+            color="#4a90d9",
+            lw=0.7,
+            alpha=0.65,
+            label="Raw flow",
+        )
+
+        fl = plot_df[plot_df[col] == 1]
+
+        if not fl.empty:
+            ax.scatter(
+                fl["timestamp"],
+                fl["raw_flow_rate"],
+                color=clr,
+                s=32,
+                zorder=6,
+                label=f"{lbl} ({len(fl)})",
+            )
+
+        ax.axhline(0, color="#8b949e", lw=0.5, linestyle=":", alpha=0.5)
         ax.set_ylabel("m³/hr", fontsize=8)
+        ax.set_title(lbl, fontsize=9, color="#c8cde0")
         ax.legend(fontsize=8, loc="upper right")
         ax.grid(True, alpha=0.2)
         ax.spines[["top", "right"]].set_visible(False)
+
+        # Same y-axis range as final graph for easy comparison
+        ax.set_ylim(y_low, y_high)
+
+    axes[-1].xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
+    fig.autofmt_xdate(rotation=25)
+    fig.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+        # ── Rule-based detector overlay plots ───────────────────────────────────────
+    st.markdown(
+        "<div style='font-size:.85rem;color:#c8cde0;margin:18px 0 6px'>"
+        "Rule-Based Detector Overlays - Last 24h</div>",
+        unsafe_allow_html=True,
+    )
+
+    rule_cols = [
+        "anom_negative",
+        "anom_spike",
+        "anom_night",
+        "anom_supply_cut",
+        "anom_sudden_drop",
+    ]
+
+    rule_labels = [
+        "Negative Flow",
+        "Spike",
+        "Night Flow",
+        "Supply Cut",
+        "Sudden Drop",
+    ]
+
+    rule_colors = ["#ff6b6b", "#ffa94d", "#9b8ec4", "#e74c3c", "#3fb950"]
+
+    fig, axes = plt.subplots(
+        len(rule_cols),
+        1,
+        figsize=(13, 13),
+        sharex=True,
+        gridspec_kw={"hspace": 0.45},
+    )
+
+    for ax, col, lbl, clr in zip(axes, rule_cols, rule_labels, rule_colors):
+        ax.plot(
+            plot_df["timestamp"],
+            plot_df["raw_flow_rate"],
+            color="#4a90d9",
+            lw=0.7,
+            alpha=0.65,
+            label="Raw flow",
+        )
+
+        fl = plot_df[plot_df[col] == 1]
+
+        if not fl.empty:
+            ax.scatter(
+                fl["timestamp"],
+                fl["raw_flow_rate"],
+                color=clr,
+                s=32,
+                zorder=6,
+                label=f"{lbl} ({len(fl)})",
+            )
+
+        ax.axhline(0, color="#8b949e", lw=0.5, linestyle=":", alpha=0.5)
+        ax.set_ylabel("m³/hr", fontsize=8)
+        ax.set_title(lbl, fontsize=9, color="#c8cde0")
+        ax.legend(fontsize=8, loc="upper right")
+        ax.grid(True, alpha=0.2)
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.set_ylim(y_low, y_high)
 
     axes[-1].xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
     fig.autofmt_xdate(rotation=25)
@@ -2467,62 +2520,18 @@ with tab_anom:
     st.pyplot(fig)
     plt.close(fig)
 
-    if "iforest_score" in df.columns and df["iforest_score"].sum() > 0:
-        df["day_label"] = df["timestamp"].dt.strftime("%d %b")
-        df["hour_col"] = df["timestamp"].dt.hour
-
-        pivot = df.pivot_table(
-            index="day_label",
-            columns="hour_col",
-            values="iforest_score",
-            aggfunc="max",
-        ).fillna(0)
-
-        fig, ax = plt.subplots(figsize=(13, max(4, len(pivot) * 0.5 + 2)))
-        sns.heatmap(
-            pivot,
-            ax=ax,
-            cmap="YlOrRd",
-            linewidths=0.15,
-            linecolor="#0f1117",
-            cbar_kws={"label": "IF score"},
-            annot=False,
-        )
-        ax.set_title("Isolation Forest score heatmap — day × hour")
-        ax.set_xlabel("Hour")
-        ax.set_ylabel("")
-        plt.tight_layout()
-        st.pyplot(fig)
-        plt.close(fig)
-
     st.markdown(
-        "<div style='font-size:.85rem;color:#c8cde0;margin:12px 0 6px'>"
-        "Final anomaly events</div>",
+        "<div style='font-size:.85rem;color:#c8cde0;margin:12px 0 6px'>Final anomaly events</div>",
         unsafe_allow_html=True,
     )
 
     dcols = [
         c for c in [
-            "timestamp",
-            "raw_flow_rate",
-            "median",
-            "lower",
-            "upper",
-            "pattern_direction",
-            "pattern_deviation",
-            "rule_score",
-            "ml_score",
-            "anom_pattern",
-            "anom_negative",
-            "anom_spike",
-            "anom_night",
-            "anom_supply_cut",
-            "anom_sudden_drop",
-            "anom_zscore",
-            "anom_iqr",
-            "anom_iforest",
-            "anom_pca",
-            "model_vote",
+            "timestamp", "raw_flow_rate", "median", "lower", "upper",
+            "pattern_direction", "pattern_deviation", "rule_score", "ml_score",
+            "anom_pattern", "anom_negative", "anom_spike", "anom_night",
+            "anom_supply_cut", "anom_sudden_drop", "anom_zscore", "anom_iqr",
+            "anom_iforest", "anom_pca", "model_vote",
         ]
         if c in df.columns
     ]
@@ -2532,9 +2541,6 @@ with tab_anom:
         width="stretch",
         height=320,
     )
-
-
-
 
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 6 — PATTERN ANALYSIS
