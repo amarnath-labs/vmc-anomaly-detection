@@ -1644,9 +1644,9 @@ OBJECT_NAME = st.session_state.get("object_name", "MJP-5917").strip()
 
 FLOW_RATE_MAX = 800
 
-tab_live, tab_eda, tab_anom, tab_fcast, tab_data, tab_pattern, tab_qos = st.tabs([
+tab_live, tab_eda, tab_anom, tab_pattern, tab_qos = st.tabs([
     "📦 Live / Batch Feed", "📊 EDA", "🔍 Anomaly Detection",
-    "📈 Forecast", "📋 Data Table", "📐 Pattern Analysis", "📉 QoS Trend"])
+      "📐 Pattern Analysis", "📉 QoS Trend"])
 
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 1 — LIVE / BATCH FEED
@@ -2058,70 +2058,7 @@ with tab_anom:
                           "anom_zscore","anom_iqr","anom_iforest","anom_pca","model_vote"] if c in df.columns]
     st.dataframe(df[df["final_anomaly"] == 1][dcols].reset_index(drop=True), width="content", height=280)
 
-# ═════════════════════════════════════════════════════════════════════════════
-# TAB 4 — FORECAST
-# ═════════════════════════════════════════════════════════════════════════════
-with tab_fcast:
-    if not analysis_ready():
-        st.info("Fetch a batch or start live feed to collect data, or upload CSV files in the sidebar.")
-        st.stop()
 
-    with st.spinner("Building forecast…"):
-        df = get_processed()
-        fc, lo, hi, fts, sm = forecast(df, forecast_steps)
-
-    if fc is None:
-        st.warning("Not enough active readings for forecast (need ≥10).")
-        st.stop()
-
-    freq = max(1, int(df["timestamp"].diff().dt.total_seconds().median() / 60))
-    st.markdown(f"<div style='font-size:.8rem;color:#555d6e;margin-bottom:12px'>Horizon: {forecast_steps} readings × {freq} min = {forecast_steps*freq} min ahead</div>", unsafe_allow_html=True)
-
-    lookback    = df[df["timestamp"] >= df["timestamp"].max() - pd.Timedelta(days=2)]
-    active_look = lookback[lookback["flow_rate_m3hr"] > 5]
-
-    fig, ax = plt.subplots(figsize=(13, 5))
-    # SAFE FIX: plot raw_flow_rate for forecast chart
-    ax.plot(lookback["timestamp"], lookback["raw_flow_rate"], color="#4a90d9", lw=1.0, label="Actual (raw)", alpha=.85)
-    n_sm = len(active_look)
-    if n_sm > 0:
-        ax.plot(active_look["timestamp"], sm[-n_sm:], color="#3fb950", lw=1.0,
-                linestyle="--", label="Fitted", alpha=.8)
-    ax.plot(fts, fc, color="#ffa94d", lw=1.5, label="Forecast", zorder=5)
-    ax.fill_between(fts, lo, hi, alpha=.18, color="#ffa94d", label="95% CI")
-    fa_look = lookback[lookback["final_anomaly"] == 1]
-    ax.scatter(fa_look["timestamp"], fa_look["raw_flow_rate"], color="#ff6b6b", s=28, zorder=7, label="Anomaly")
-    ax.axvline(df["timestamp"].max(), color="#555d6e", lw=.8, linestyle=":", label="Now")
-    ax.axhline(0, color="#555d6e", lw=.5, linestyle=":", alpha=.4)
-    ax.set_ylabel("Flow rate (m³/hr)"); ax.set_title("Last 48 hrs + Forecast")
-    ax.legend(fontsize=8, ncol=5); ax.grid(True, alpha=.25)
-    ax.spines[["top","right"]].set_visible(False)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
-    fig.autofmt_xdate(rotation=30); fig.tight_layout(); st.pyplot(fig); plt.close(fig)
-
-    if n_sm > 0:
-        act_v  = active_look["raw_flow_rate"].values
-        fit_v  = sm[-n_sm:]
-        resids = act_v - fit_v
-        rthresh= np.std(resids) * 2
-        fig, ax= plt.subplots(figsize=(13, 2.8))
-        rclrs  = ["#ff6b6b" if abs(r) > rthresh else "#4a90d9" for r in resids]
-        ax.bar(active_look["timestamp"].values, resids, color=rclrs,
-               width=pd.Timedelta(minutes=freq * .8))
-        ax.axhline(0, color="#555d6e", lw=.6)
-        ax.axhline(rthresh,  color="#ff6b6b", lw=.7, linestyle="--", alpha=.6)
-        ax.axhline(-rthresh, color="#ff6b6b", lw=.7, linestyle="--", alpha=.6)
-        ax.set_ylabel("Residual (m³/hr)"); ax.set_title("Forecast residuals (red = large error)")
-        ax.grid(True, alpha=.2); ax.spines[["top","right"]].set_visible(False)
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
-        fig.autofmt_xdate(rotation=30); fig.tight_layout(); st.pyplot(fig); plt.close(fig)
-
-    fcast_df = pd.DataFrame({"timestamp": fts, "forecast_m3hr": np.round(fc, 2),
-                              "upper": np.round(hi, 2), "lower": np.round(lo, 2)})
-    st.dataframe(fcast_df, width="stretch", height=260)
-    st.download_button("⬇️ Download forecast CSV",
-                       data=fcast_df.to_csv(index=False).encode(),
-                       file_name="vmc_forecast.csv", mime="text/csv")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
