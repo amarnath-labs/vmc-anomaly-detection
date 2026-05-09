@@ -16,6 +16,8 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 import warnings
+from sklearn.preprocessing import RobustScaler
+
 warnings.filterwarnings("ignore")
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -87,11 +89,16 @@ METER_MAP = {
     },
     "KRL-5751": {
         "dlp": "5751",
-        "flowmeter": "B",
-        "channel": "BI2",
-        "tag_match": "KRL-5751",
-        "aliases": ["KRL-5751", "KRL-5917", "DLP5751.BI2"],
+        "flowmeter": "A",
+        "channel": "AI1",
+        "tag_match": "KRL-5751.Tags.FMA.AI1",
+        "aliases": [
+            "KRL-5751",
+            "VMC.DLP2.KRL.KRL-5751.Tags.FMA.AI1",
+            "FMA.AI1",
+        ],
     },
+
 
     # ── DLP2 / Phase-2 meters (from dashboard screenshots) ────────────────
     "MJP-4684": {
@@ -1646,7 +1653,7 @@ FLOW_RATE_MAX = 800
 
 tab_live, tab_eda, tab_anom, tab_pattern, tab_qos = st.tabs([
     "📦 Live / Batch Feed", "📊 EDA", "🔍 Anomaly Detection",
-      "📐 Pattern Analysis", "📉 QoS Trend"])
+     "📐 Pattern Analysis", "📉 QoS Trend"])
 
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 1 — LIVE / BATCH FEED
@@ -1983,80 +1990,548 @@ with tab_eda:
         else:   st.success("✅ No low-supply days detected")
 
 # ═════════════════════════════════════════════════════════════════════════════
-# TAB 3 — ANOMALY DETECTION
+# TAB 3 — ANOMALY DETECTION WITH MEDIAN PATTERN BASELINE
 # ═════════════════════════════════════════════════════════════════════════════
 with tab_anom:
     if not analysis_ready():
         st.info("Fetch a batch or start live feed to collect data, or upload CSV files in the sidebar.")
         st.stop()
 
-    with st.spinner("Running 4 detection models…"):
-        df = get_processed()
+    BIN_MIN = 5
+    SUPPLY_THRESHOLD = 5.0
+    MIN_REF_DAYS_PER_BIN = 3
+    PATTERN_MARGIN_PCT = flow_tol_pct / 100
+
+    def _prepare_flow_df(df_in: pd.DataFrame) -> pd.DataFrame:
+        df_out = df_in.copy()
+        if "flow_rate" in df_out.columns and "flow_rate_m3hr" not in df_out.columns:
+            df_out = df_out.rename(columns={"flow_rate": "flow_rate_m3hr"})
+        df_out["timestamp"] = pd.to_datetime(df_out["timestamp"], format="mixed")
+        df_out = df_out.dropna(subset=["timestamp", "flow_rate_m3hr"])
+        df_out = df_out.sort_values("timestamp").reset_index(drop=True)
+        return df_out
+
+    def build_median_pattern_baseline(ref_df: pd.DataFrame):
+        ref_df = _prepare_flow_df(ref_df)
+
+        if ref_df.empty:
+            return pd.DataFrame(), 0.0, 0
+
+        ref_df["date"] = ref_df["timestamp"].dt.date
+        ref_df["minute_of_day"] = (
+            ref_df["timestamp"].dt.hour * 60
+            + ref_df["timestamp"].dt.minute
+        )
+        ref_df["tod_bin"] = (ref_df["minute_of_day"] // BIN_MIN) * BIN_MIN
+
+        daily_bins = (
+            ref_df.groupby(["date", "tod_bin"])["flow_rate_m3hr"]
+            .median()
+            .reset_index()
+        )
+
+        baseline = (
+            daily_bins.groupby("tod_bin")["flow_rate_m3hr"]
+            .agg(median="median", ref_days="count")
+            .reset_index()
+        )
+
+        all_bins = pd.DataFrame({"tod_bin": np.arange(0, 24 * 60, BIN_MIN)})
+        baseline = all_bins.merge(baseline, on="tod_bin", how="left")
+        baseline["median"] = baseline["median"].fillna(0.0)
+        baseline["ref_days"] = baseline["ref_days"].fillna(0).astype(int)
+
+        active_ref = daily_bins[daily_bins["flow_rate_m3hr"] > SUPPLY_THRESHOLD]["flow_rate_m3hr"]
+        supply_avg = float(active_ref.mean()) if not active_ref.empty else float(daily_bins["flow_rate_m3hr"].mean())
+
+        if np.isnan(supply_avg):
+            supply_avg = 0.0
+
+        margin = PATTERN_MARGIN_PCT * supply_avg
+        baseline["lower"] = (baseline["median"] - margin).clip(lower=0)
+        baseline["upper"] = baseline["median"] + margin
+        baseline["hour_frac"] = baseline["tod_bin"] / 60
+
+        return baseline, margin, ref_df["date"].nunique()
+
+    def attach_pattern_anomaly(df_current: pd.DataFrame, baseline: pd.DataFrame) -> pd.DataFrame:
+        dfp = df_current.copy()
+
+        dfp["minute_of_day"] = (
+            dfp["timestamp"].dt.hour * 60
+            + dfp["timestamp"].dt.minute
+        )
+        dfp["tod_bin"] = (dfp["minute_of_day"] // BIN_MIN) * BIN_MIN
+        dfp["hour_frac"] = (
+            dfp["timestamp"].dt.hour
+            + dfp["timestamp"].dt.minute / 60
+            + dfp["timestamp"].dt.second / 3600
+        )
+
+        dfp = dfp.merge(
+            baseline[["tod_bin", "median", "lower", "upper", "ref_days"]],
+            on="tod_bin",
+            how="left",
+        )
+
+        dfp[["median", "lower", "upper"]] = dfp[["median", "lower", "upper"]].fillna(0.0)
+        dfp["ref_days"] = dfp["ref_days"].fillna(0).astype(int)
+
+        supply_bin = dfp["median"] > SUPPLY_THRESHOLD
+        enough_ref = dfp["ref_days"] >= MIN_REF_DAYS_PER_BIN
+
+        dfp["anom_pattern"] = (
+            enough_ref
+            & supply_bin
+            & (
+                (dfp["flow_rate_m3hr"] < dfp["lower"])
+                | (dfp["flow_rate_m3hr"] > dfp["upper"])
+            )
+        ).astype(int)
+
+        dfp["pattern_direction"] = np.where(
+            dfp["flow_rate_m3hr"] > dfp["upper"],
+            "Above median band",
+            np.where(dfp["flow_rate_m3hr"] < dfp["lower"], "Below median band", "Normal"),
+        )
+
+        dfp["pattern_deviation"] = dfp["flow_rate_m3hr"] - dfp["median"]
+        return dfp
+
+    def run_robust_anomaly_models(df_in: pd.DataFrame) -> pd.DataFrame:
+        df = _prepare_flow_df(df_in)
+        df["raw_flow_rate"] = df["flow_rate_m3hr"].copy()
+
+        df["hour"] = df["timestamp"].dt.hour
+        df["dow"] = df["timestamp"].dt.dayofweek
+        df["minute_of_day"] = df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute
+        df["hour_sin"] = np.sin(2 * np.pi * df["minute_of_day"] / 1440)
+        df["hour_cos"] = np.cos(2 * np.pi * df["minute_of_day"] / 1440)
+
+        df["is_night"] = ((df["hour"] >= night_start) | (df["hour"] <= night_end)).astype(int)
+
+        df["flow_diff"] = df["flow_rate_m3hr"].diff().fillna(0)
+        df["flow_pct_change"] = (
+            df["flow_rate_m3hr"]
+            .pct_change()
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
+        )
+
+        df["roll_median_10"] = df["flow_rate_m3hr"].rolling(10, min_periods=3).median()
+        df["roll_mad_10"] = (
+            df["flow_rate_m3hr"]
+            .rolling(10, min_periods=3)
+            .apply(lambda x: np.median(np.abs(x - np.median(x))), raw=True)
+            .fillna(0)
+        )
+
+        df["robust_z"] = (
+            0.6745
+            * (df["flow_rate_m3hr"] - df["roll_median_10"])
+            / df["roll_mad_10"].replace(0, np.nan)
+        ).replace([np.inf, -np.inf], 0).fillna(0)
+
+        df["roll_mean_10"] = df["flow_rate_m3hr"].rolling(10, min_periods=1).mean()
+        df["roll_mean_30"] = df["flow_rate_m3hr"].rolling(30, min_periods=1).mean()
+        df["deviation"] = df["flow_rate_m3hr"] - df["roll_mean_30"]
+
+        df["anom_negative"] = (df["flow_rate_m3hr"] < 0).astype(int)
+        df["anom_spike"] = (df["flow_rate_m3hr"].abs() > spike_threshold).astype(int)
+
+        night_ref = df[df["is_night"] == 1]["flow_rate_m3hr"]
+        night_limit = max(SUPPLY_THRESHOLD, float(night_ref.quantile(0.95))) if len(night_ref) >= 10 else SUPPLY_THRESHOLD
+
+        df["anom_night"] = (
+            (df["is_night"] == 1)
+            & (df["flow_rate_m3hr"] > night_limit)
+        ).astype(int)
+
+        df["prev_flow"] = df["flow_rate_m3hr"].shift(1).fillna(0)
+
+        df["anom_supply_cut"] = (
+            (df["flow_rate_m3hr"] < SUPPLY_THRESHOLD)
+            & (df["prev_flow"] > 100)
+        ).astype(int)
+
+        df["anom_sudden_drop"] = (
+            (df["flow_rate_m3hr"] > SUPPLY_THRESHOLD)
+            & (df["roll_mean_10"] > 100)
+            & (df["flow_rate_m3hr"] < df["roll_mean_10"] * 0.4)
+        ).astype(int)
+
+        df["anom_zscore"] = (df["robust_z"].abs() > z_sensitivity).astype(int)
+
+        active = df["flow_rate_m3hr"] > SUPPLY_THRESHOLD
+        dfa = df[active].copy()
+
+        df["anom_iqr"] = 0
+        if len(dfa) >= 10:
+            q1, q3 = dfa["flow_rate_m3hr"].quantile([0.25, 0.75])
+            iqr = q3 - q1
+            lo = q1 - 2.5 * iqr
+            hi = q3 + 2.5 * iqr
+            df.loc[dfa.index, "anom_iqr"] = (
+                (dfa["flow_rate_m3hr"] < lo)
+                | (dfa["flow_rate_m3hr"] > hi)
+            ).astype(int)
+
+        feats = [
+            "flow_rate_m3hr",
+            "flow_diff",
+            "flow_pct_change",
+            "robust_z",
+            "roll_median_10",
+            "roll_mad_10",
+            "hour_sin",
+            "hour_cos",
+            "is_night",
+        ]
+
+        df["anom_iforest"] = 0
+        df["iforest_score"] = 0.0
+
+        df["anom_pca"] = 0
+        df["pca_score"] = 0.0
+
+        if len(dfa) >= 30:
+            X = dfa[feats].replace([np.inf, -np.inf], 0).fillna(0)
+
+            scaler = RobustScaler()
+            Xs = scaler.fit_transform(X)
+
+            ifor = IsolationForest(
+                n_estimators=200,
+                contamination=contamination,
+                random_state=42,
+            )
+            if_preds = ifor.fit_predict(Xs)
+            if_score = -ifor.decision_function(Xs)
+
+            df.loc[dfa.index, "anom_iforest"] = (if_preds == -1).astype(int)
+            df.loc[dfa.index, "iforest_score"] = if_score
+
+            pca = PCA(n_components=min(3, Xs.shape[1]), random_state=42)
+            Xp = pca.fit_transform(Xs)
+            Xr = pca.inverse_transform(Xp)
+            err = np.mean((Xs - Xr) ** 2, axis=1)
+
+            pca_thr = err.mean() + 3 * err.std()
+            df.loc[dfa.index, "anom_pca"] = (err > pca_thr).astype(int)
+            df.loc[dfa.index, "pca_score"] = err
+
+        return df
+
+    with st.spinner("Running rule-based, ML, and median-pattern anomaly detection..."):
+        # Analyse only the latest 24 hours
+        eval_end = datetime.now()
+        eval_start = eval_end - timedelta(hours=24)
+
+        current_df = _prepare_flow_df(ana_df_raw)
+        current_df = current_df[
+            (current_df["timestamp"] >= eval_start)
+            & (current_df["timestamp"] <= eval_end)
+        ].copy()
+
+        if current_df.empty or len(current_df) < 5:
+            st.warning("Not enough readings in the last 24 hours for anomaly detection.")
+            st.stop()
+
+        df = run_robust_anomaly_models(current_df)
+
+
+        pattern_source = None
+
+        if st.session_state.get("pattern_df") is not None:
+            pattern_source = st.session_state.pattern_df.copy()
+        else:
+            cached_pattern = load_pattern_cache()
+            if cached_pattern is not None:
+                pattern_source = cached_pattern.copy()
+
+        if pattern_source is None or pattern_source.empty:
+            pattern_source = db_load(hours_back=24 * 60)
+
+        if pattern_source is None or pattern_source.empty:
+            baseline = pd.DataFrame()
+            pattern_margin = 0.0
+            ref_days = 0
+            df["anom_pattern"] = 0
+            df["median"] = np.nan
+            df["lower"] = np.nan
+            df["upper"] = np.nan
+            df["pattern_direction"] = "No baseline"
+            df["pattern_deviation"] = np.nan
+        else:
+            pattern_source = _prepare_flow_df(pattern_source)
+
+            # Build median baseline only from history before the 24h evaluation window
+            ref_df = pattern_source[
+                pattern_source["timestamp"] < eval_start
+            ].copy()
+
+            if ref_df.empty:
+                st.warning("No historical data before the last 24h window. Median-pattern baseline unavailable.")
+
+
+            baseline, pattern_margin, ref_days = build_median_pattern_baseline(ref_df)
+            df = attach_pattern_anomaly(df, baseline)
+
+        df["rule_score"] = (
+            df["anom_negative"] * 5
+            + df["anom_spike"] * 5
+            + df["anom_night"] * 3
+            + df["anom_supply_cut"] * 4
+            + df["anom_sudden_drop"] * 4
+        )
+
+        df["ml_score"] = (
+            df["anom_zscore"] * 1
+            + df["anom_iqr"] * 1
+            + df["anom_iforest"] * 2
+            + df["anom_pca"] * 2
+            + df["anom_pattern"] * 3
+        )
+
+        df["model_vote"] = (
+            df["anom_zscore"]
+            + df["anom_iqr"]
+            + df["anom_iforest"]
+            + df["anom_pca"]
+            + df["anom_pattern"]
+        )
+
+        df["final_anomaly"] = (
+            (df["rule_score"] >= 3)
+            | (df["ml_score"] >= 3)
+        ).astype(int)
 
     total = int(df["final_anomaly"].sum())
-    st.markdown(f"<div style='font-size:.8rem;color:#555d6e;margin-bottom:12px'>{len(df):,} readings analysed · {total} anomalies found</div>", unsafe_allow_html=True)
+    pattern_total = int(df["anom_pattern"].sum()) if "anom_pattern" in df.columns else 0
+
+    st.markdown(
+        f"<div style='font-size:.8rem;color:#555d6e;margin-bottom:12px'>"
+        f"Last 24h only · {len(df):,} readings analysed · {total:,} final anomalies · "
+
+        f"{pattern_total:,} median-pattern anomalies · "
+        f"{ref_days} reference days · margin ±{pattern_margin:.2f} m³/hr"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
     mcounts = {
-        "Z-score":         int(df["anom_zscore"].sum()),
-        "IQR":             int(df["anom_iqr"].sum()),
-        "Isolation Forest":int(df["anom_iforest"].sum()),
-        "PCA Autoencoder": int(df["anom_pca"].sum()),
-        "Final (3+ / rule)":int(df["final_anomaly"].sum()),
+        "Pattern median": int(df["anom_pattern"].sum()),
+        "Robust Z": int(df["anom_zscore"].sum()),
+        "IQR": int(df["anom_iqr"].sum()),
+        "Isolation Forest": int(df["anom_iforest"].sum()),
+        "PCA": int(df["anom_pca"].sum()),
+        "Rules": int((df["rule_score"] >= 3).sum()),
+        "Final": int(df["final_anomaly"].sum()),
     }
-    fig, ax = plt.subplots(figsize=(9, 3.8))
-    bclrs   = ["#9b8ec4","#9b8ec4","#c4736b","#6bab7a","#4a90d9"]
-    bars    = ax.bar(list(mcounts.keys()), list(mcounts.values()), color=bclrs, width=.55, zorder=3)
+
+    fig, ax = plt.subplots(figsize=(10, 3.8))
+    colors = ["#e74c3c", "#ffa94d", "#ff6b6b", "#8b949e", "#3fb950", "#9b8ec4", "#4a90d9"]
+    bars = ax.bar(list(mcounts.keys()), list(mcounts.values()), color=colors, width=0.55, zorder=3)
+
     for bar, v in zip(bars, mcounts.values()):
-        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + .3, str(v),
-                ha="center", va="bottom", fontsize=9, color="#c8cde0")
-    ax.set_ylabel("Count"); ax.set_title("Anomalies per model")
-    ax.grid(True, alpha=.3, axis="y"); ax.spines[["top","right"]].set_visible(False)
-    fig.tight_layout(); st.pyplot(fig); plt.close(fig)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.3,
+            str(v),
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            color="#c8cde0",
+        )
 
-    fig, ax = plt.subplots(figsize=(13, 3.5))
-    # SAFE FIX: plot raw_flow_rate (pre-detector snapshot) for anomaly overlay
-    ax.plot(df["timestamp"], df["raw_flow_rate"], color="#4a90d9", lw=.7, alpha=.7, label="Flow (raw)")
+    ax.set_ylabel("Count")
+    ax.set_title("Anomalies by detector")
+    ax.grid(True, alpha=0.3, axis="y")
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+
+    st.markdown(
+        "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:18px 0 6px'>"
+        "Median Pattern Band + Raw Flow Anomalies</div>",
+        unsafe_allow_html=True,
+    )
+
+    fig, ax = plt.subplots(figsize=(13, 4.5))
+
+    if "baseline" in locals() and baseline is not None and not baseline.empty:
+        ax.fill_between(
+            baseline["hour_frac"],
+            baseline["lower"],
+            baseline["upper"],
+            alpha=0.30,
+            color="#4a90d9",
+            label=f"Median margin band ±{pattern_margin:.1f} m³/hr",
+        )
+
+        ax.plot(
+            baseline["hour_frac"],
+            baseline["median"],
+            color="#e74c3c",
+            lw=2.0,
+            label="Median baseline",
+            zorder=5,
+        )
+
+    ax.plot(
+        df["hour_frac"],
+        df["raw_flow_rate"],
+        color="#3fb950",
+        lw=1.1,
+        alpha=0.9,
+        label="Raw flow",
+        zorder=6,
+    )
+
+    pat = df[df["anom_pattern"] == 1]
+    if not pat.empty:
+        ax.scatter(
+            pat["hour_frac"],
+            pat["raw_flow_rate"],
+            color="#ff6b6b",
+            s=35,
+            zorder=8,
+            label=f"Pattern anomalies ({len(pat)})",
+        )
+
+    ax.axhline(0, color="#555d6e", lw=0.6, linestyle=":", alpha=0.5)
+    ax.set_xlim(0, 24)
+    ax.set_xticks(range(0, 25, 2))
+    ax.set_xlabel("Hour of day")
+    ax.set_ylabel("Flow rate (m³/hr)")
+    ax.set_title("Raw Flow vs 2-Month Median Pattern")
+    ax.legend(fontsize=8, loc="upper right", ncol=2)
+    ax.grid(True, alpha=0.3)
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(13, 3.8))
+    ax.plot(df["timestamp"], df["raw_flow_rate"], color="#4a90d9", lw=0.7, alpha=0.75, label="Flow raw")
+
     fa = df[df["final_anomaly"] == 1]
-    ax.scatter(fa["timestamp"], fa["raw_flow_rate"], color="#ff6b6b", s=30, zorder=6,
-               marker="^", label=f"Final anomaly ({len(fa)})")
-    ax.axhline(spike_threshold, color="#ffa94d", lw=.8, linestyle="--", alpha=.6, label="Spike limit")
-    ax.axhline(0, color="#555d6e", lw=.5, linestyle=":", alpha=.4)
-    ax.set_ylabel("m³/hr"); ax.set_title("Final anomaly flags (3+ models / rule-based)")
-    ax.legend(fontsize=8); ax.grid(True, alpha=.3); ax.spines[["top","right"]].set_visible(False)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
-    fig.autofmt_xdate(rotation=25); fig.tight_layout(); st.pyplot(fig); plt.close(fig)
+    ax.scatter(
+        fa["timestamp"],
+        fa["raw_flow_rate"],
+        color="#ff6b6b",
+        s=30,
+        zorder=6,
+        marker="^",
+        label=f"Final anomaly ({len(fa)})",
+    )
 
-    st.markdown("<div style='font-size:.85rem;color:#c8cde0;margin:12px 0 6px'>Model-by-model overlay</div>", unsafe_allow_html=True)
-    model_cols   = ["anom_zscore","anom_iqr","anom_iforest","anom_pca"]
-    model_labels = ["Z-score","IQR","Isolation Forest","PCA Autoencoder"]
-    model_colors = ["#ffa94d","#ff6b6b","#8b949e","#3fb950"]
-    fig, axes    = plt.subplots(4, 1, figsize=(13, 11), sharex=True, gridspec_kw={"hspace":.45})
+    ax.axhline(spike_threshold, color="#ffa94d", lw=0.8, linestyle="--", alpha=0.6, label="Spike limit")
+    ax.axhline(0, color="#555d6e", lw=0.5, linestyle=":", alpha=0.4)
+    ax.set_ylabel("m³/hr")
+    ax.set_title("Final anomaly flags")
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
+    fig.autofmt_xdate(rotation=25)
+    fig.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+
+    st.markdown(
+        "<div style='font-size:.85rem;color:#c8cde0;margin:12px 0 6px'>"
+        "Model-by-model overlay</div>",
+        unsafe_allow_html=True,
+    )
+
+    model_cols = ["anom_pattern", "anom_zscore", "anom_iqr", "anom_iforest", "anom_pca"]
+    model_labels = ["Median Pattern", "Robust Z", "IQR", "Isolation Forest", "PCA"]
+    model_colors = ["#e74c3c", "#ffa94d", "#ff6b6b", "#8b949e", "#3fb950"]
+
+    fig, axes = plt.subplots(5, 1, figsize=(13, 13), sharex=True, gridspec_kw={"hspace": 0.45})
+
     for ax, col, lbl, clr in zip(axes, model_cols, model_labels, model_colors):
-        # SAFE FIX: use raw_flow_rate for all model overlay plots
-        ax.plot(df["timestamp"], df["raw_flow_rate"], color="#4a90d9", lw=.4, alpha=.5)
+        ax.plot(df["timestamp"], df["raw_flow_rate"], color="#4a90d9", lw=0.4, alpha=0.5)
         fl = df[df[col] == 1]
         ax.scatter(fl["timestamp"], fl["raw_flow_rate"], color=clr, s=18, zorder=6, label=f"{lbl} ({len(fl)})")
-        ax.set_ylabel("m³/hr", fontsize=8); ax.legend(fontsize=8, loc="upper right")
-        ax.grid(True, alpha=.2); ax.spines[["top","right"]].set_visible(False)
+        ax.set_ylabel("m³/hr", fontsize=8)
+        ax.legend(fontsize=8, loc="upper right")
+        ax.grid(True, alpha=0.2)
+        ax.spines[["top", "right"]].set_visible(False)
+
     axes[-1].xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
-    fig.autofmt_xdate(rotation=25); fig.tight_layout(); st.pyplot(fig); plt.close(fig)
+    fig.autofmt_xdate(rotation=25)
+    fig.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
 
     if "iforest_score" in df.columns and df["iforest_score"].sum() > 0:
         df["day_label"] = df["timestamp"].dt.strftime("%d %b")
-        df["hour_col"]  = df["timestamp"].dt.hour
-        pivot = df.pivot_table(index="day_label", columns="hour_col",
-                               values="iforest_score", aggfunc="max").fillna(0)
-        fig, ax = plt.subplots(figsize=(13, max(4, len(pivot) * 0.5 + 2)))
-        sns.heatmap(pivot, ax=ax, cmap="YlOrRd", linewidths=.15, linecolor="#0f1117",
-                    cbar_kws={"label":"IF score"}, annot=False)
-        ax.set_title("Anomaly score heatmap — day × hour")
-        ax.set_xlabel("Hour"); ax.set_ylabel("")
-        plt.tight_layout(); st.pyplot(fig); plt.close(fig)
+        df["hour_col"] = df["timestamp"].dt.hour
 
-    st.markdown("<div style='font-size:.85rem;color:#c8cde0;margin:12px 0 6px'>Anomaly events</div>", unsafe_allow_html=True)
-    dcols = [c for c in ["timestamp","raw_flow_rate","roll_mean_10","deviation",
-                          "anom_zscore","anom_iqr","anom_iforest","anom_pca","model_vote"] if c in df.columns]
-    st.dataframe(df[df["final_anomaly"] == 1][dcols].reset_index(drop=True), width="content", height=280)
+        pivot = df.pivot_table(
+            index="day_label",
+            columns="hour_col",
+            values="iforest_score",
+            aggfunc="max",
+        ).fillna(0)
+
+        fig, ax = plt.subplots(figsize=(13, max(4, len(pivot) * 0.5 + 2)))
+        sns.heatmap(
+            pivot,
+            ax=ax,
+            cmap="YlOrRd",
+            linewidths=0.15,
+            linecolor="#0f1117",
+            cbar_kws={"label": "IF score"},
+            annot=False,
+        )
+        ax.set_title("Isolation Forest score heatmap — day × hour")
+        ax.set_xlabel("Hour")
+        ax.set_ylabel("")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    st.markdown(
+        "<div style='font-size:.85rem;color:#c8cde0;margin:12px 0 6px'>"
+        "Final anomaly events</div>",
+        unsafe_allow_html=True,
+    )
+
+    dcols = [
+        c for c in [
+            "timestamp",
+            "raw_flow_rate",
+            "median",
+            "lower",
+            "upper",
+            "pattern_direction",
+            "pattern_deviation",
+            "rule_score",
+            "ml_score",
+            "anom_pattern",
+            "anom_negative",
+            "anom_spike",
+            "anom_night",
+            "anom_supply_cut",
+            "anom_sudden_drop",
+            "anom_zscore",
+            "anom_iqr",
+            "anom_iforest",
+            "anom_pca",
+            "model_vote",
+        ]
+        if c in df.columns
+    ]
+
+    st.dataframe(
+        df[df["final_anomaly"] == 1][dcols].reset_index(drop=True),
+        width="stretch",
+        height=320,
+    )
 
 
 
@@ -2065,25 +2540,29 @@ with tab_anom:
 # TAB 6 — PATTERN ANALYSIS
 # ═════════════════════════════════════════════════════════════════════════════
 with tab_pattern:
-
     st.markdown(
         "<div style='font-size:.8rem;color:#555d6e;margin-bottom:14px'>"
-        "Fetches Jan + Feb from VMC API → overlays ALL daily curves together in one graph "
-        "(multi-day overlay) → computes median profile as benchmark → identifies best "
-        "repeated shape via K-Means → scores every day against the benchmark."
+        "Builds a 2-month time-of-day median flow profile, creates a margin band, "
+        "then compares today's raw sensor readings against that band. "
+        "Raw points outside the band are marked as anomalies."
         "</div>",
         unsafe_allow_html=True,
     )
 
-    st.caption(f"🔧 Active meter: `{OBJECT_NAME}` — if this changed recently, clear pattern cache first.")
+    st.caption(f"Active meter: `{OBJECT_NAME}`")
+
+    BIN_MIN = 5
+    MARGIN_PCT = flow_tol_pct / 100
+    MIN_REF_DAYS_PER_BIN = 3
+    SUPPLY_THRESHOLD = 5.0
 
     p_col1, p_col2 = st.columns([1, 3])
 
     with p_col1:
         do_pattern = st.button(
-            f"📥 Fetch Jan {pattern_year}–Today",
+            f"Fetch Jan {pattern_year}-Today",
             type="primary",
-            width="stretch"
+            width="stretch",
         )
 
     with p_col2:
@@ -2092,17 +2571,16 @@ with tab_pattern:
             st.markdown(
                 f"<div style='padding:8px 12px;background:#1a1d27;border:1px solid #2a2d3a;"
                 f"border-radius:8px;font-size:.8rem;color:#4ecdc4'>"
-                f"✅ Loaded: <b>{len(pdf):,}</b> readings across "
-                f"<b>{pdf['timestamp'].dt.date.nunique()}</b> days "
-                f"(Jan {pattern_year}–Today). Benchmark set. Scroll down for charts.</div>",
-                unsafe_allow_html=True
+                f"Loaded <b>{len(pdf):,}</b> readings across "
+                f"<b>{pdf['timestamp'].dt.date.nunique()}</b> days.</div>",
+                unsafe_allow_html=True,
             )
         else:
             st.markdown(
                 "<div style='padding:8px 12px;background:#1a1d27;border:1px solid #2a2d3a;"
                 "border-radius:8px;font-size:.8rem;color:#7a8196'>"
-                "Click the button to fetch 2 months of data and run pattern analysis.</div>",
-                unsafe_allow_html=True
+                "Click fetch to build the two-month median baseline.</div>",
+                unsafe_allow_html=True,
             )
 
     pat_debug = st.empty()
@@ -2110,15 +2588,14 @@ with tab_pattern:
     if do_pattern:
         try_login()
 
-        with st.spinner(f"Fetching Jan {pattern_year}–Today in weekly chunks…"):
+        with st.spinner(f"Fetching reference data from Jan {pattern_year} to today..."):
             cached = load_pattern_cache()
 
             if cached is not None:
                 pat_df = cached
                 st.warning(
-                    f"⚠️ Loaded from **local cache** ({len(pat_df):,} rows). "
-                    f"If you recently changed the meter (`{OBJECT_NAME}`), "
-                    f"click **'🗑 Clear Pattern Cache'** in the sidebar and re-fetch."
+                    f"Loaded from local cache ({len(pat_df):,} rows). "
+                    f"If you changed meter recently, clear pattern cache first."
                 )
             else:
                 pat_df = fetch_two_months(year=int(pattern_year))
@@ -2127,502 +2604,229 @@ with tab_pattern:
                     st.success("Data fetched from API and saved to local cache.")
 
         if pat_df.empty:
-            st.warning("⚠️ No data from VMC API for that period — falling back to DB data.")
-            pat_df = db_load(hours_back=168)
-
-            if "flow_rate_m3hr" not in pat_df.columns and "flow_rate" in pat_df.columns:
-                pat_df = pat_df.rename(columns={"flow_rate": "flow_rate_m3hr"})
+            st.warning("No API data found. Falling back to DB data.")
+            pat_df = db_load(hours_back=24 * 60)
 
         if pat_df.empty:
-            st.error("❌ No data available at all. Fetch a batch first from the Live/Batch tab.")
+            st.error("No data available. Fetch a batch first from Live / Batch Feed.")
             with pat_debug.expander("Debug", expanded=True):
                 st.code(st.session_state.last_raw or "No response")
-        else:
-            st.session_state.pattern_df = pat_df
-
-            with st.spinner("Computing benchmark pattern…"):
-                bench, curves_df, all_curves, labels, centroids, modal_idx = find_benchmark_pattern(
-                    pat_df,
-                    n_clusters=int(pattern_k)
-                )
-
-                all_wins = []
-                pat_df_cp = pat_df.copy()
-                pat_df_cp["date_"] = pat_df_cp["timestamp"].dt.date
-
-                for date_, group in pat_df_cp.groupby("date_"):
-                    wins = detect_supply_windows_df(group)
-                    for w in wins:
-                        w["date"] = str(date_)
-                    all_wins.extend(wins)
-
-                benchmark_box, _ = build_benchmark_from_windows(
-                    all_wins,
-                    n_clusters=int(pattern_k)
-                )
-
-            st.session_state.benchmark_curve = bench
-            st.session_state.benchmark_windows = benchmark_box
-            st.session_state.curves_df = curves_df
-            st.session_state.all_curves = all_curves
-            st.session_state.centroids = centroids
-            st.session_state.modal_idx = modal_idx
-
-            st.rerun()
-
-    if st.session_state.pattern_df is None:
-        st.info("No Jan-Feb API data fetched yet — checking DB for accumulated readings...")
-        fallback_df = db_load(hours_back=720)
-
-        if not fallback_df.empty:
-            if "flow_rate" in fallback_df.columns:
-                fallback_df = fallback_df.rename(
-                    columns={"flow_rate": "flow_rate_m3hr"}
-                )
-
-            st.session_state.pattern_df = fallback_df
-
-            with st.spinner("Computing benchmark pattern from DB fallback..."):
-                bench, curves_df, all_curves, labels, centroids, modal_idx = find_benchmark_pattern(
-                    fallback_df,
-                    n_clusters=int(pattern_k)
-                )
-
-                all_wins = []
-                fallback_cp = fallback_df.copy()
-                fallback_cp["date_"] = fallback_cp["timestamp"].dt.date
-
-                for date_, group in fallback_cp.groupby("date_"):
-                    wins = detect_supply_windows_df(group)
-                    for w in wins:
-                        w["date"] = str(date_)
-                    all_wins.extend(wins)
-
-                benchmark_box, _ = build_benchmark_from_windows(
-                    all_wins,
-                    n_clusters=int(pattern_k)
-                )
-
-            st.session_state.benchmark_curve = bench
-            st.session_state.benchmark_windows = benchmark_box
-            st.session_state.curves_df = curves_df
-            st.session_state.all_curves = all_curves
-            st.session_state.centroids = centroids
-            st.session_state.modal_idx = modal_idx
-
-            st.warning(
-                f"Using last 30 days from DB "
-                f"({len(fallback_df):,} readings across "
-                f"{fallback_df['timestamp'].dt.date.nunique()} days) "
-                f"as pattern baseline.\n\n"
-                f"Fetch more daily batches to improve benchmark quality. "
-                f"Or click Fetch Jan-Feb button above for historical data."
-            )
-
-            st.rerun()
-
-        else:
-            st.error(
-                "No data in DB either. "
-                "Go to Live / Batch Feed tab and fetch a batch first."
-            )
             st.stop()
 
-    pat_df = st.session_state.pattern_df
-    bench = st.session_state.benchmark_curve
-    bench_box = st.session_state.benchmark_windows
-    curves_df = st.session_state.curves_df
-    all_curves = st.session_state.all_curves
-    centroids = st.session_state.centroids
-    modal_idx = st.session_state.modal_idx
+        if "flow_rate" in pat_df.columns and "flow_rate_m3hr" not in pat_df.columns:
+            pat_df = pat_df.rename(columns={"flow_rate": "flow_rate_m3hr"})
 
-    if bench is None or all_curves is None or curves_df is None or centroids is None:
-        st.warning("Benchmark not computed yet — press the fetch button.")
+        pat_df["timestamp"] = pd.to_datetime(pat_df["timestamp"], format="mixed")
+        pat_df = pat_df.sort_values("timestamp").reset_index(drop=True)
+
+        st.session_state.pattern_df = pat_df
+        st.rerun()
+
+    if st.session_state.pattern_df is None:
+        st.info("No pattern data loaded yet. Trying DB fallback...")
+        fallback_df = db_load(hours_back=24 * 60)
+
+        if fallback_df.empty:
+            st.error("No data in DB either. Fetch a batch first.")
+            st.stop()
+
+        if "flow_rate" in fallback_df.columns and "flow_rate_m3hr" not in fallback_df.columns:
+            fallback_df = fallback_df.rename(columns={"flow_rate": "flow_rate_m3hr"})
+
+        fallback_df["timestamp"] = pd.to_datetime(fallback_df["timestamp"], format="mixed")
+        fallback_df = fallback_df.sort_values("timestamp").reset_index(drop=True)
+
+        st.session_state.pattern_df = fallback_df
+        st.warning(
+            f"Using DB fallback: {len(fallback_df):,} readings across "
+            f"{fallback_df['timestamp'].dt.date.nunique()} days."
+        )
+
+    pat_df = st.session_state.pattern_df.copy()
+
+    if pat_df.empty or "flow_rate_m3hr" not in pat_df.columns:
+        st.error("Pattern data is empty or missing flow_rate_m3hr.")
         st.stop()
 
-    bm_start_str = (f"{int(bench_box['start_hour']):02d}:"
-                    f"{int((bench_box['start_hour']%1)*60):02d}") if bench_box else "N/A"
-    bm_end_str   = (f"{int(bench_box['end_hour']):02d}:"
-                    f"{int((bench_box['end_hour']%1)*60):02d}") if bench_box else "N/A"
+    pat_df["timestamp"] = pd.to_datetime(pat_df["timestamp"], format="mixed")
+    pat_df = pat_df.sort_values("timestamp").reset_index(drop=True)
 
-    hours_axis = np.arange(24)
+    now_dt = datetime.now()
+    today_date = now_dt.date()
+    today_start = datetime.combine(today_date, datetime.min.time())
 
-    # ── Build raw_curves_9 in RAW m³/hr (no normalization, no interpolation) ──
-    raw_curves_9 = {}
-    pat_df_9 = pat_df.copy()
-    pat_df_9["date"] = pat_df_9["timestamp"].dt.date
+    # Reference baseline: previous data only, excluding today.
+    ref_df = pat_df[pat_df["timestamp"].dt.date < today_date].copy()
 
-    for date_, grp in pat_df_9.groupby("date"):
-        grp = grp.copy()
-        grp["hour"] = grp["timestamp"].dt.hour
-        hourly = (grp.groupby("hour")["flow_rate_m3hr"]
-                     .mean()                              # SAFE FIX: mean preserves magnitude
-                     .reindex(range(24), fill_value=0.0)) # SAFE FIX: fill 0, no interpolation
-        curve = hourly.values.astype(float)
-        if curve.max() >= 1.0:
-            raw_curves_9[str(date_)] = curve
+    if ref_df.empty:
+        st.error("No historical reference data before today. Fetch more history first.")
+        st.stop()
 
-    st.caption(f"Section ⑨ using {len(raw_curves_9)} raw daily curves "
-               f"(max value: {max(c.max() for c in raw_curves_9.values()):.1f} m³/hr)"
-               if raw_curves_9 else "No curves available")
+    # Keep latest 60 reference days if more data exists.
+    ref_dates = sorted(ref_df["timestamp"].dt.date.unique())
+    if len(ref_dates) > 60:
+        keep_dates = set(ref_dates[-60:])
+        ref_df = ref_df[ref_df["timestamp"].dt.date.isin(keep_dates)].copy()
 
-    if raw_curves_9 and len(raw_curves_9) >= 1:
+    ref_df["date"] = ref_df["timestamp"].dt.date
+    ref_df["minute_of_day"] = (
+        ref_df["timestamp"].dt.hour * 60
+        + ref_df["timestamp"].dt.minute
+    )
+    ref_df["tod_bin"] = (ref_df["minute_of_day"] // BIN_MIN) * BIN_MIN
 
-        if len(raw_curves_9) < 10:
-            db_supplement = db_load(hours_back=168)
-            if not db_supplement.empty:
-                db_supplement["date"] = db_supplement["timestamp"].dt.date
-                for date_, grp in db_supplement.groupby("date"):
-                    date_str = str(date_)
-                    if date_str not in raw_curves_9:
-                        grp = grp.copy()
-                        grp["hour"] = grp["timestamp"].dt.hour
-                        hourly = (grp.groupby("hour")["flow_rate_m3hr"]
-                                    .mean()
-                                    .reindex(range(24), fill_value=0.0))  # SAFE FIX: no interpolation
-                        curve = hourly.values.astype(float)
-                        if curve.max() >= 1.0:
-                            raw_curves_9[date_str] = curve
-                st.info(f"ℹ️ Only {len(raw_curves_9)} API reference days — "
-                        f"supplemented with last 7 days from DB.")
+    # First collapse each day/bin, then take median across days.
+    daily_bins = (
+        ref_df.groupby(["date", "tod_bin"])["flow_rate_m3hr"]
+        .median()
+        .reset_index()
+    )
 
-        # ⑥ Today vs Benchmark
-        st.markdown(
-            "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:20px 0 6px'>"
-            "⑥ Today's Flow vs Benchmark (PDF §5 comparison methodology)</div>",
-            unsafe_allow_html=True)
+    baseline = (
+        daily_bins.groupby("tod_bin")["flow_rate_m3hr"]
+        .agg(median="median", ref_days="count")
+        .reset_index()
+    )
 
-    def db_load_recent_day(min_readings: int = 20) -> tuple[pd.DataFrame, str]:
-        meter_id  = st.session_state.get("object_name", "MJP-5917")
-        now       = datetime.now()
-        since_24h = now - timedelta(hours=24)
+    all_bins = pd.DataFrame({"tod_bin": np.arange(0, 24 * 60, BIN_MIN)})
+    baseline = all_bins.merge(baseline, on="tod_bin", how="left")
+    baseline["median"] = baseline["median"].fillna(0.0)
+    baseline["ref_days"] = baseline["ref_days"].fillna(0).astype(int)
 
-        con   = sqlite3.connect(DB_PATH)
-        df_24 = pd.read_sql(
-            """
-            SELECT meter_id, timestamp, flow_rate, is_anomaly
-            FROM readings
-            WHERE timestamp >= ? AND meter_id = ?
-            ORDER BY timestamp
-            """,
-            con,
-            params=(since_24h.isoformat(), meter_id),
-        )
-        con.close()
+    active_ref = daily_bins[daily_bins["flow_rate_m3hr"] > SUPPLY_THRESHOLD]["flow_rate_m3hr"]
+    supply_avg = float(active_ref.mean()) if not active_ref.empty else float(daily_bins["flow_rate_m3hr"].mean())
+    if np.isnan(supply_avg):
+        supply_avg = 0.0
 
-        if df_24.empty:
-            return pd.DataFrame(), "No data"
+    margin = MARGIN_PCT * supply_avg
+    baseline["lower"] = (baseline["median"] - margin).clip(lower=0)
+    baseline["upper"] = baseline["median"] + margin
+    baseline["hour_frac"] = baseline["tod_bin"] / 60
 
-        df_24["timestamp"]    = pd.to_datetime(df_24["timestamp"], format="mixed")
-        df_24                 = df_24.rename(columns={"flow_rate": "flow_rate_m3hr"})
-        df_24                 = df_24.sort_values("timestamp").reset_index(drop=True)
+    # Today's raw data: use actual readings, not hourly average.
+    db_today = db_load(hours_back=48)
+    if db_today.empty:
+        today_df = pat_df[pat_df["timestamp"] >= today_start].copy()
+    else:
+        today_df = db_today[db_today["timestamp"] >= today_start].copy()
 
-        df_24["hour"]      = df_24["timestamp"].dt.hour
-        df_24["hour_frac"] = (
-            df_24["timestamp"].dt.hour
-            + df_24["timestamp"].dt.minute / 60
-            + df_24["timestamp"].dt.second / 3600
-        )
+    if "flow_rate" in today_df.columns and "flow_rate_m3hr" not in today_df.columns:
+        today_df = today_df.rename(columns={"flow_rate": "flow_rate_m3hr"})
 
-        label = f"Last 24h ({since_24h.strftime('%d %b %H:%M')} → now, {len(df_24):,} readings)"
-        return df_24, label
-
-    bench_box = st.session_state.get("benchmark_windows", None)
-    today_df, _today_label = db_load_recent_day(min_readings=20)
-
-    if _today_label != "Today":
-        st.info(f"📅 {_today_label} — used to build a complete 24h comparison curve.")
-
-    if not today_df.empty:
-        today_df["hour"] = today_df["timestamp"].dt.hour
-        today_df = today_df.sort_values("timestamp").reset_index(drop=True)
-        today_df["hour_frac"] = (
-            today_df["timestamp"].dt.hour +
-            today_df["timestamp"].dt.minute / 60 +
-            today_df["timestamp"].dt.second / 3600
-        )
+    today_df["timestamp"] = pd.to_datetime(today_df["timestamp"], format="mixed")
+    today_df = today_df.sort_values("timestamp").reset_index(drop=True)
 
     if today_df.empty:
-        st.info("No today data in DB yet — fetch a batch from the Live tab first.")
-        today_windows = []
-        today_qos = (0.0, ["Benchmark not available"], None)
-        today_anomalies = []
-        matched_win = None
-        status_str = "N/A"
+        st.warning("No readings for today yet. Fetch today's batch first.")
     else:
-        today_col = "flow_rate_m3hr"
+        today_df["minute_of_day"] = (
+            today_df["timestamp"].dt.hour * 60
+            + today_df["timestamp"].dt.minute
+        )
+        today_df["tod_bin"] = (today_df["minute_of_day"] // BIN_MIN) * BIN_MIN
+        today_df["hour_frac"] = (
+            today_df["timestamp"].dt.hour
+            + today_df["timestamp"].dt.minute / 60
+            + today_df["timestamp"].dt.second / 3600
+        )
 
-        today_windows = detect_supply_windows_df(today_df)
+        today_eval = today_df.merge(
+            baseline[["tod_bin", "median", "lower", "upper", "ref_days"]],
+            on="tod_bin",
+            how="left",
+        )
 
-        if bench_box:
-            today_qos, today_anomalies, matched_win = score_day_vs_benchmark(
-                today_windows,
-                bench_box,
-                time_tol_min=time_tol_min,
-                flow_tol=flow_tol_pct / 100
+        supply_bin = today_eval["median"].fillna(0) > SUPPLY_THRESHOLD
+        enough_reference = today_eval["ref_days"].fillna(0) >= MIN_REF_DAYS_PER_BIN
+
+        today_eval["is_pattern_anomaly"] = (
+            enough_reference
+            & supply_bin
+            & (
+                (today_eval["flow_rate_m3hr"] < today_eval["lower"])
+                | (today_eval["flow_rate_m3hr"] > today_eval["upper"])
             )
-        else:
-            today_qos, today_anomalies, matched_win = (
-                0.0,
-                ["Benchmark not available"],
-                None
-            )
+        )
 
-        qos_color = "#3fb950" if today_qos >= 85 else "#ffa94d" if today_qos >= 70 else "#ff6b6b"
-        status_str = "EXCELLENT" if today_qos >= 85 else "GOOD" if today_qos >= 70 else "⚠️ POOR"
+        anomaly_df = today_eval[today_eval["is_pattern_anomaly"]].copy()
+        anomaly_count = len(anomaly_df)
+
+        qos = 100.0
+        if len(today_eval) > 0:
+            qos = max(0.0, 100.0 * (1.0 - anomaly_count / len(today_eval)))
+
+        status_str = "EXCELLENT" if qos >= 85 else "GOOD" if qos >= 70 else "POOR"
 
         kc1, kc2, kc3, kc4, kc5 = st.columns(5)
-        today_peak = today_df[today_col].max()
 
         for col_, label, val, cls in [
-            (kc1, "Today QoS",       f"{today_qos:.1f}%",       "danger" if today_qos < 70 else ""),
-            (kc2, "Status",           status_str,                "danger" if today_qos < 70 else ""),
-            (kc3, "Supply Windows",   str(len(today_windows)),   ""),
-            (kc4, "Today Peak Flow",  f"{today_peak:.1f} m³/hr", ""),
-            (kc5, "Anomalies",        str(len(today_anomalies)), "danger" if today_anomalies else ""),
+            (kc1, "Pattern QoS", f"{qos:.1f}%", "danger" if qos < 70 else ""),
+            (kc2, "Status", status_str, "danger" if qos < 70 else ""),
+            (kc3, "Today Readings", f"{len(today_eval):,}", ""),
+            (kc4, "Anomaly Points", f"{anomaly_count:,}", "danger" if anomaly_count else ""),
+            (kc5, "Reference Days", f"{ref_df['date'].nunique()}", ""),
         ]:
             col_.markdown(
                 f"<div class='metric-card'><div class='metric-label'>{label}</div>"
                 f"<div class='metric-value {cls}' style='font-size:1.3rem'>{val}</div></div>",
-                unsafe_allow_html=True)
-
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-
-        fig, ax = plt.subplots(figsize=(13, 4.5))
-        # SAFE FIX: plot raw flow_rate_m3hr directly — no transformation
-        ax.plot(today_df["hour_frac"], today_df["flow_rate_m3hr"],
-                color="#4a90d9", lw=1.0, alpha=0.85, label="Today's flow (m³/hr)")
-        ax.fill_between(today_df["hour_frac"], today_df[today_col], alpha=0.08, color="#4a90d9")
-        if bench_box:
-            bx_s = bench_box["start_hour"]; bx_e = bench_box["end_hour"]
-            ax.axvspan(bx_s, bx_e, ymin=0, ymax=0.95, alpha=0.10, color="#e74c3c")
-            ax.axhline(bench_box["peak"], color="#e74c3c", lw=1.0, linestyle="--",
-                    alpha=0.8, label=f"Benchmark peak ({bench_box['peak']:.1f})")
-            ax.axhline(bench_box["avg"],  color="#ffa94d", lw=0.8, linestyle=":",
-                    alpha=0.8, label=f"Benchmark avg ({bench_box['avg']:.1f})")
-            ax.axvline(bx_s, color="#e74c3c", lw=1.0, linestyle="--",
-                    alpha=0.7, label=f"Bm start {bm_start_str}")
-            ax.axvline(bx_e, color="#e74c3c", lw=1.0, linestyle="--", alpha=0.7)
-        for i, w in enumerate(today_windows):
-            ax.axvspan(w["start_hour_frac"], w["end_hour_frac"], alpha=0.12, color="#3fb950",
-                    label="Today window" if i == 0 else "")
-        if today_anomalies and matched_win:
-            for idx_a, a_text in enumerate(today_anomalies[:3]):
-                ax.text(0.02, 0.97 - idx_a * 0.08, f"⚠ {a_text}",
-                        transform=ax.transAxes, fontsize=7, color="#ff6b6b", va="top")
-        ax.set_xlim(0, 24); ax.set_xticks(range(0, 25, 2))
-        ax.set_xlabel("Hour of day"); ax.set_ylabel("Flow rate (m³/hr)")
-        ax.set_title(f"Today's Flow vs Benchmark | QoS: {today_qos:.1f}% ({status_str})")
-        ax.legend(fontsize=7.5, ncol=3, loc="upper right")
-        ax.grid(True, alpha=0.3); ax.spines[["top","right"]].set_visible(False)
-        fig.tight_layout(); st.pyplot(fig); plt.close(fig)
-
-        if today_anomalies:
-            st.markdown(
-                "<div style='font-size:.85rem;font-weight:500;color:#ff6b6b;margin:10px 0 4px'>"
-                "⚠️ Today's Anomaly Details</div>", unsafe_allow_html=True)
-            anom_rows = [[i + 1, a] for i, a in enumerate(today_anomalies)]
-            st.dataframe(pd.DataFrame(anom_rows, columns=["#", "Description"]),
-                        hide_index=True, height=min(250, len(anom_rows) * 38 + 40))
-        else:
-            st.success("✅ Today's distribution matches the benchmark — no anomalies detected.")
-
-        if today_windows:
-            st.markdown(
-                "<div style='font-size:.85rem;font-weight:500;color:#c8cde0;margin:10px 0 4px'>"
-                "Today's Supply Windows</div>", unsafe_allow_html=True)
-            win_rows = []
-            for i, w in enumerate(today_windows):
-                bm_ok = bench_box and abs(w["start_hour_frac"] - bench_box["start_hour"]) * 60 <= time_tol_min
-                win_rows.append({
-                    "#":              i + 1,
-                    "Start":          w["start"].strftime("%H:%M"),
-                    "End":            w["end"].strftime("%H:%M"),
-                    "Duration (min)": f"{w['duration']:.0f}",
-                    "Peak (m³/hr)":   f"{w['peak']:.1f}",
-                    "Avg (m³/hr)":    f"{w['avg']:.1f}",
-                    "vs Benchmark":   "✅ Normal" if bm_ok else "⚠️ Deviated",
-                })
-            st.dataframe(pd.DataFrame(win_rows), hide_index=True)
-
-    # ⑦ Flow rate heatmap
-    st.markdown(
-        "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:20px 0 6px'>"
-        "⑦ Flow Rate Heatmap — Jan+Feb All Days (matches PDF Figure 5)</div>",
-        unsafe_allow_html=True)
-
-    pat_df_h = pat_df.copy()
-    pat_df_h["date_str"] = pat_df_h["timestamp"].dt.strftime("%m-%d")
-    pat_df_h["hour"]     = pat_df_h["timestamp"].dt.hour
-    hcol_    = "flow_rate_m3hr" if "flow_rate_m3hr" in pat_df_h.columns else "flow_rate"
-    pivot_hm = pat_df_h.pivot_table(
-        index="date_str", columns="hour", values=hcol_, aggfunc="mean").fillna(0)
-
-    if not pivot_hm.empty:
-        fig_h = max(6, len(pivot_hm) * 0.18 + 2)
-        fig, ax = plt.subplots(figsize=(13, fig_h))
-        sns.heatmap(pivot_hm, ax=ax, cmap="YlOrRd", linewidths=0.05,
-                    linecolor="#0f1117", cbar_kws={"label": "Flow rate (m³/hr)"},
-                    annot=False, xticklabels=2)
-        if curves_df is not None and not curves_df.empty:
-            deviant_dates = set(curves_df[curves_df["similarity"] < sim_threshold]["date"].str[5:])
-            for lbl in ax.get_yticklabels():
-                if lbl.get_text() in deviant_dates:
-                    lbl.set_color("#ffa94d"); lbl.set_fontweight("bold")
-        ax.set_title(f"Flow Rate Heatmap — Jan+Feb {pattern_year} (all days × 24 hours)")
-        ax.set_xlabel("Hour of Day"); ax.set_ylabel("Date (MM-DD)")
-        fig.tight_layout(); st.pyplot(fig); plt.close(fig)
-
-    # ⑨ Median Curve + Margin Band — Today vs 2-Month Baseline
-    st.markdown(
-        "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:28px 0 6px'>"
-        "⑨ Median Curve + Margin Band — Today vs 2-Month Baseline</div>",
-        unsafe_allow_html=True)
-    st.markdown(
-        "<div style='font-size:.78rem;color:#555d6e;margin-bottom:12px'>"
-        "The <span style='color:#e74c3c'>red line</span> is the median hourly flow "
-        "across all Jan+Feb days. The <span style='color:#4a90d9'>shaded blue band</span> "
-        "is the normal margin (±20% of supply-hour avg). "
-        "Today's curve in <span style='color:#3fb950'>green</span> is compared against "
-        "this band — <span style='color:#ff6b6b'>red dots mark anomaly hours</span> "
-        "where today is outside the margin.</div>",
-        unsafe_allow_html=True)
-
-    if raw_curves_9 and len(raw_curves_9) >= 1:
-        # ── STEP 1: Separate evening-supply days from no-supply days ──────────
-        all_curve_matrix = np.array(list(raw_curves_9.values()))
-        hours_axis = np.arange(24)
-
-        EVENING_HOURS = slice(18, 24)
-        evening_flow_per_day = all_curve_matrix[:, EVENING_HOURS].max(axis=1)
-        has_evening_supply = evening_flow_per_day > 5
-
-        if has_evening_supply.sum() >= 5:
-            reference_matrix = all_curve_matrix[has_evening_supply]
-            baseline_label = f"Evening-supply days ({has_evening_supply.sum()} days)"
-        else:
-            reference_matrix = all_curve_matrix
-            baseline_label = f"All-days baseline ({len(all_curve_matrix)} days)"
-
-        # ── STEP 2: Compute per-hour median ignoring zero-supply hours ────────
-        hourly_medians = []
-        for h in range(24):
-            col = reference_matrix[:, h]
-            active = col[col > 5]
-            if len(active) >= 2:
-                hourly_medians.append(float(np.median(active)))
-            elif len(active) == 1:
-                hourly_medians.append(float(active[0]))
-            else:
-                hourly_medians.append(0.0)
-        median_curve = np.array(hourly_medians)
-
-        # ── STEP 4: Build today's RAW hourly curve ────────────────────────────
-        today_raw_curve = None
-        if not today_df.empty:
-            today_df_temp = today_df.copy()
-            today_df_temp["hour"] = today_df_temp["timestamp"].dt.hour
-            # SAFE FIX: use mean, fill 0, no interpolation — preserve raw signal shape
-            hourly_today = (today_df_temp
-                            .groupby("hour")["flow_rate_m3hr"]
-                            .mean()
-                            .reindex(range(24), fill_value=0.0))  # SAFE FIX: no interpolation
-            today_raw_curve = hourly_today.values.astype(float)
-
-        # ── STEP 3: Margin based on supply hours ──────────────────────────────
-        non_zero_mask = median_curve > 5
-
-        if non_zero_mask.any():
-            supply_avg = np.mean(reference_matrix[:, non_zero_mask])
-        else:
-            supply_avg = np.mean(reference_matrix)
-
-        if today_raw_curve is not None:
-            today_active = today_raw_curve[today_raw_curve > 5]
-            if len(today_active) > 0:
-                today_supply_avg = float(np.mean(today_active))
-                supply_avg = max(supply_avg, today_supply_avg)
-
-        margin = 0.20 * supply_avg
-        lower_band = np.clip(median_curve - margin, 0, None)
-        upper_band = median_curve + margin
-
-        # ── STEP 5: Detect anomaly hours ──────────────────────────────────────
-        anomaly_hours = []
-        if today_raw_curve is not None:
-            above_margin = today_raw_curve > upper_band
-            below_margin = (today_raw_curve < lower_band) | (
-                (today_raw_curve < 5) & (median_curve > 5)
+                unsafe_allow_html=True,
             )
-            supply_hour_mask = median_curve > 5
-            anomaly_mask = (above_margin | below_margin) & supply_hour_mask
-            anomaly_hours = hours_axis[anomaly_mask].tolist()
 
-        # ── STEP 6: Y-axis scale from actual data ─────────────────────────────
-        y_max_ref   = float(np.nanmax(reference_matrix)) if len(reference_matrix) else 60.0
-        y_max_today = float(np.nanmax(today_raw_curve))  if today_raw_curve is not None else 0.0
-        y_max = max(y_max_ref, y_max_today) * 1.15
-        y_max = max(y_max, 10.0)
-
-        # ── STEP 7: Plot ───────────────────────────────────────────────────────
-        current_hour = datetime.now().hour
-        x_max = 23 if today_raw_curve is None else min(23, current_hour + 1)
+        st.markdown(
+            "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:24px 0 6px'>"
+            "Median Pattern + Margin Band vs Today's Raw Flow</div>",
+            unsafe_allow_html=True,
+        )
 
         fig, ax = plt.subplots(figsize=(13, 5))
 
-        ax.fill_between(hours_axis, lower_band, upper_band,
-                        alpha=0.35, color="#4a90d9",
-                        label=f"Normal margin (±20% of supply avg = ±{margin:.1f} m³/hr)")
-        ax.plot(hours_axis, upper_band, color="#4a90d9",
-                lw=0.9, linestyle="--", alpha=0.7, label=f"Upper margin (+20%)")
-        ax.plot(hours_axis, lower_band, color="#4a90d9",
-                lw=0.9, linestyle="--", alpha=0.7, label=f"Lower margin (−20%)")
+        ax.fill_between(
+            baseline["hour_frac"],
+            baseline["lower"],
+            baseline["upper"],
+            alpha=0.35,
+            color="#4a90d9",
+            label=f"Normal margin (+/-{flow_tol_pct}% = +/-{margin:.1f} m3/hr)",
+        )
 
-        ax.plot(hours_axis, median_curve, color="#e74c3c", lw=2.5,
-                label=f"Median — {len(reference_matrix)} days ({baseline_label})",
-                zorder=5)
+        ax.plot(
+            baseline["hour_frac"],
+            baseline["median"],
+            color="#e74c3c",
+            lw=2.2,
+            label=f"Median baseline ({ref_df['date'].nunique()} days)",
+            zorder=5,
+        )
 
-        # SAFE FIX: plot raw today curve directly — no normalization
-        if today_raw_curve is not None:
-            ax.plot(hours_axis[:x_max+1], today_raw_curve[:x_max+1],
-                    color="#3fb950", lw=2.0,
-                    label="Today's flow (m³/hr)", zorder=6)
+        ax.plot(
+            today_eval["hour_frac"],
+            today_eval["flow_rate_m3hr"],
+            color="#3fb950",
+            lw=1.2,
+            label="Today's raw flow",
+            zorder=6,
+        )
 
-            if anomaly_hours:
-                anom_idx = [int(h) for h in anomaly_hours if int(h) <= x_max]
-                ax.scatter(anom_idx,
-                           today_raw_curve[anom_idx],
-                           color="#ff6b6b", s=90, zorder=8,
-                           label=f"Anomaly hours ({len(anom_idx)})",
-                           edgecolors="#c0392b", linewidths=1.2)
-                for h in anom_idx:
-                    ax.axvline(h, color="#ff6b6b", lw=0.5, alpha=0.25, linestyle=":")
-        else:
-            ax.text(0.5, 0.5,
-                    "No today data in DB\n(fetch a batch from Live tab first)",
-                    transform=ax.transAxes, ha="center", va="center",
-                    color="#555d6e", fontsize=11)
+        if not anomaly_df.empty:
+            ax.scatter(
+                anomaly_df["hour_frac"],
+                anomaly_df["flow_rate_m3hr"],
+                color="#ff6b6b",
+                s=45,
+                zorder=8,
+                edgecolors="#c0392b",
+                linewidths=0.8,
+                label=f"Anomaly points ({len(anomaly_df)})",
+            )
 
-        ax.set_xlim(-0.5, x_max + 0.5)
-        ax.set_xticks(range(0, x_max + 1, 1))
-        ax.set_xticklabels([f"{h:02d}" for h in range(x_max + 1)], fontsize=7.5)
-        ax.set_ylim(-1, y_max)
-        ax.set_xlabel("Hour of Day (00 = midnight, 12 = noon)", fontsize=9)
-        ax.set_ylabel("Flow Rate (m³/hr)", fontsize=9)
-
-        if today_raw_curve is not None and anomaly_hours:
-            title_str = (f"2-Month Baseline vs Today  |  {len(reference_matrix)} "
-                         f"reference days (Jan–Feb {pattern_year})\n"
-                         f"⚠️  Today OUTSIDE normal margin at hours: {anomaly_hours}")
-        elif today_raw_curve is not None:
-            title_str = (f"2-Month Baseline vs Today  |  {len(reference_matrix)} "
-                         f"reference days (Jan–Feb {pattern_year})\n"
-                         f"✅  Today stays within normal margin")
-        else:
-            title_str = (f"2-Month Baseline  |  {len(reference_matrix)} "
-                         f"reference days (Jan–Feb {pattern_year})")
-
-        ax.set_title(title_str, fontsize=10)
+        ax.axhline(0, color="#555d6e", lw=0.6, linestyle=":", alpha=0.5)
+        ax.set_xlim(0, 24)
+        ax.set_xticks(range(0, 25, 2))
+        ax.set_xlabel("Hour of day")
+        ax.set_ylabel("Flow rate (m3/hr)")
+        ax.set_title(
+            f"2-Month Median Pattern vs Today's Raw Flow | QoS {qos:.1f}% ({status_str})"
+        )
         ax.legend(fontsize=8, loc="upper right", ncol=2, framealpha=0.85)
         ax.grid(True, alpha=0.3)
         ax.spines[["top", "right"]].set_visible(False)
@@ -2630,65 +2834,83 @@ with tab_pattern:
         st.pyplot(fig)
         plt.close(fig)
 
-        # ── STEP 8: Status banner ──────────────────────────────────────────────
-        if today_raw_curve is not None:
-            if anomaly_hours:
-                st.markdown(
-                    f"<div style='background:#1e1215;border:1px solid #ff6b6b;"
-                    f"border-radius:8px;padding:12px 16px;margin-top:8px'>"
-                    f"<span style='color:#ff6b6b;font-weight:600;font-size:.85rem'>"
-                    f"⚠️  Today has {len(anomaly_hours)} anomaly hour(s) outside "
-                    f"the 2-month margin</span><br>"
-                    f"<span style='color:#8b949e;font-size:.78rem'>"
-                    f"Anomaly hours: "
-                    f"{', '.join(f'{int(h):02d}:00' for h in anomaly_hours)}<br>"
-                    f"Could be a supply disruption, leak, or demand surge."
-                    f"</span></div>",
-                    unsafe_allow_html=True)
+        if anomaly_df.empty:
+            st.success("Today's raw flow stayed within the median margin band.")
+        else:
+            st.warning(
+                f"Today's raw flow has {len(anomaly_df):,} point(s) outside the margin band."
+            )
 
-                anomaly_details = []
-                for h in anomaly_hours:
-                    h         = int(h)
-                    today_val = float(today_raw_curve[h])
-                    med_val   = float(median_curve[h])
-                    up_val    = float(upper_band[h])
-                    lo_val    = float(lower_band[h])
-                    direction = "↑ ABOVE normal" if today_val > up_val else "↓ BELOW normal"
-                    pct_diff  = abs(today_val - med_val) / max(med_val, 0.01) * 100
-                    anomaly_details.append({
-                        "Hour"          : f"{h:02d}:00",
-                        "Direction"     : direction,
-                        "% from median" : f"{pct_diff:.0f}%",
-                        "Today (m³/hr)" : f"{today_val:.2f}",
-                        "Median (m³/hr)": f"{med_val:.2f}",
-                        "Normal range"  : f"{lo_val:.1f} – {up_val:.1f} m³/hr",
-                    })
-                st.markdown(
-                    "<div style='font-size:.82rem;font-weight:500;color:#ff6b6b;"
-                    "margin:12px 0 4px'>Anomaly breakdown by hour</div>",
-                    unsafe_allow_html=True)
-                st.dataframe(pd.DataFrame(anomaly_details), hide_index=True,
-                             height=min(320, len(anomaly_details) * 38 + 40))
-            else:
-                st.markdown(
-                    "<div style='background:#0d1a12;border:1px solid #3fb950;"
-                    "border-radius:8px;padding:12px 16px;margin-top:8px'>"
-                    "<span style='color:#3fb950;font-weight:600;font-size:.85rem'>"
-                    "✅  Today's flow pattern is within the normal 2-month margin"
-                    "</span></div>",
-                    unsafe_allow_html=True)
+            anomaly_table = anomaly_df.copy()
+            anomaly_table["Time"] = anomaly_table["timestamp"].dt.strftime("%H:%M:%S")
+            anomaly_table["Today (m3/hr)"] = anomaly_table["flow_rate_m3hr"].round(2)
+            anomaly_table["Median (m3/hr)"] = anomaly_table["median"].round(2)
+            anomaly_table["Lower"] = anomaly_table["lower"].round(2)
+            anomaly_table["Upper"] = anomaly_table["upper"].round(2)
+            anomaly_table["Direction"] = np.where(
+                anomaly_table["flow_rate_m3hr"] > anomaly_table["upper"],
+                "Above margin",
+                "Below margin",
+            )
 
-                with st.expander("💡 How the margin is calculated"):
-                    st.markdown(f"""
-        **Currently using: ±20% of supply-hour average flow rate (m³/hr)**
-        - Reference days used: `{len(reference_matrix)}` ({baseline_label})
-        - Supply-hour avg flow rate: `{supply_avg:.2f} m³/hr`
-        - Margin: `±{margin:.2f} m³/hr`
-        - Supply hours identified: hours where median > 5 m³/hr
-                    """)
+            st.dataframe(
+                anomaly_table[
+                    ["Time", "Direction", "Today (m3/hr)", "Median (m3/hr)", "Lower", "Upper"]
+                ].reset_index(drop=True),
+                hide_index=True,
+                height=320,
+            )
 
-    else:
-        st.info("Not enough historical curves — fetch data first using the button above.")
+        with st.expander("How this pattern anomaly check works"):
+            st.markdown(
+                f"""
+- Baseline uses historical data before today.
+- Latest reference window: `{ref_df['date'].nunique()}` days.
+- Time bin size: `{BIN_MIN}` minutes.
+- For each time bin, the app computes the median flow across reference days.
+- Margin: `+/-{flow_tol_pct}%` of supply-hour average = `+/-{margin:.2f} m3/hr`.
+- Today's green line uses raw readings, not hourly averages.
+- A point is anomalous only when the reference median is above `{SUPPLY_THRESHOLD}` m3/hr and the raw reading is outside the band.
+                """
+            )
+
+    st.markdown(
+        "<div style='font-size:.9rem;font-weight:500;color:#c8cde0;margin:26px 0 6px'>"
+        "Reference Flow Heatmap</div>",
+        unsafe_allow_html=True,
+    )
+
+    heat_df = ref_df.copy()
+    heat_df["date_str"] = heat_df["timestamp"].dt.strftime("%m-%d")
+    heat_df["hour"] = heat_df["timestamp"].dt.hour
+
+    pivot_hm = heat_df.pivot_table(
+        index="date_str",
+        columns="hour",
+        values="flow_rate_m3hr",
+        aggfunc="mean",
+    ).fillna(0)
+
+    if not pivot_hm.empty:
+        fig_h = max(6, len(pivot_hm) * 0.18 + 2)
+        fig, ax = plt.subplots(figsize=(13, fig_h))
+        sns.heatmap(
+            pivot_hm,
+            ax=ax,
+            cmap="YlOrRd",
+            linewidths=0.05,
+            linecolor="#0f1117",
+            cbar_kws={"label": "Flow rate (m3/hr)"},
+            annot=False,
+            xticklabels=2,
+        )
+        ax.set_title("Reference flow heatmap")
+        ax.set_xlabel("Hour of day")
+        ax.set_ylabel("Date")
+        fig.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 7 — QoS TREND
