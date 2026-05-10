@@ -1,6 +1,4 @@
 
-
-# Built-in modules used for database work, dates, files, logging, and shutdown.
 import sqlite3
 import time
 import logging
@@ -11,7 +9,10 @@ import io
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-# Third-party libraries used for data analysis, API calls, charts, scheduling, and ML.
+# These are third-party libraries installed with pip.
+# pandas/numpy handle tables and numbers, requests calls the VMC and Telegram APIs,
+# matplotlib/seaborn draw charts, APScheduler runs the daily job, and sklearn is used
+# for machine-learning based anomaly detection.
 import numpy as np
 import pandas as pd
 import requests
@@ -32,7 +33,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # ReportLab imports for PDF generation
-# ReportLab is used to create the daily PDF report.
+# ReportLab is the library that builds the daily PDF report.
+# The code below imports page sizes, colors, tables, images, and text styles used in that PDF.
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import cm
@@ -41,7 +43,9 @@ from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
-# Some VMC HTTPS calls may raise certificate warnings, so the worker hides them from logs.
+# The VMC server may use an HTTPS certificate that requests marks as "not verified".
+# This line hides those warning messages so the log stays readable.
+# API calls still run the same way; this only affects warning display.
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -50,10 +54,14 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ─────────────────────────────────────────────────────────────────────────────
 
 # --- Telegram ---
-# Telegram bot token used for sending messages and PDF reports.
+# Telegram bot token used to send messages and PDF reports.
+# Beginner note: this token is like a password for the bot, so in real projects it is safer
+# to store it in an environment variable instead of writing it directly in the code.
 BOT_TOKEN = "8651505010:AAFez7NjjAp31nOSADop22tUAxy3WyYrxdY"
 
-# Chat IDs decide where Telegram alerts and reports are delivered.
+# Telegram chat IDs decide where alerts and reports are sent.
+# Add a personal chat ID or a group chat ID here. The loop in send_message/send_pdf
+# sends the same report to every ID in this list.
 TELEGRAM_CHAT_IDS = [
     "871141199",      # ✅ your personal chat (amar nath)
     #"-5296731596",    # ✅ Anamoly report group
@@ -61,6 +69,8 @@ TELEGRAM_CHAT_IDS = [
 
 # --- VMC API ---
 # VMC API connection settings.
+# VMC_BASE is the server address. The API paths below are tried one by one because
+# different VMC endpoints may return the same data in slightly different formats.
 VMC_BASE         = "https://scph1.vmcsmartwater.in:9090"
 
 HISTORY_API_PATHS = [
@@ -79,20 +89,26 @@ VMC_USER    = "7644881557"
 VMC_PASS    = "5678"
 
 # --- SQLite (shared with Streamlit dashboard) ---
-# SQLite database file shared by this worker and the dashboard.
+# SQLite database file shared by this worker and the Streamlit dashboard.
+# SQLite stores data in one local .db file, so no separate database server is needed.
 DB_PATH = "vmc_readings.db"
 
 # --- Batch fetch window (hours) ---
 # Number of hours fetched in one daily batch.
+# With 24, the worker collects a full day of readings in one API request cycle.
 BATCH_WINDOW_HOURS = 24
 
 # --- Optional hourly heartbeat ---
-# Heartbeat is optional and stores one small reading between daily reports.
+# Heartbeat is optional.
+# When enabled, it stores one small live reading at a regular interval so the dashboard
+# can show recent activity even before the next full daily report runs.
 HEARTBEAT_ENABLED     = False
 HEARTBEAT_INTERVAL_HR = 1
 
 # --- Anomaly thresholds ---
 # Simple rule limits used to mark obvious abnormal readings.
+# For example, a very high flow can be treated as a spike, and unexpected night flow
+# can be treated as a possible leak or unusual supply pattern.
 SPIKE_THRESHOLD  = 6000   # adjust based on FMA_5445 max expected flow
 NIGHT_FLOW_LIMIT = 500    # adjust for FMA_5445 night baseline
 Z_THRESHOLD      = 3.0
@@ -102,18 +118,23 @@ NIGHT_END_HR     = 5
 
 # --- Full-detector settings (mirrors Streamlit sidebar defaults) ---
 # Settings for the advanced anomaly detector and forecast.
+# These values control how sensitive the machine-learning checks are and how many
+# future points the forecast chart should estimate.
 CONTAMINATION    = 0.05   # Isolation Forest contamination
 Z_SENSITIVITY    = 3.0    # Z-score threshold for full detector
 FORECAST_STEPS   = 30     # Exponential smoothing steps ahead
 
 # --- Pattern analysis settings ---
 # Settings used for Jan-Feb pattern comparison.
+# The worker uses older daily curves to learn what a normal supply pattern looks like,
+# then compares new days against that learned pattern.
 PATTERN_YEAR     = 2026   # Year to fetch Jan–Feb for pattern analysis
 PATTERN_K        = 6      # K-Means clusters
 SIM_THRESHOLD    = 75     # Similarity % threshold for match/deviant
 
 # --- Daily report time (IST) ---
 # Daily report schedule in Indian Standard Time.
+# The scheduler uses these two numbers to decide when to run the main report job.
 REPORT_HOUR   = 6
 REPORT_MINUTE = 0
 
@@ -121,7 +142,9 @@ REPORT_MINUTE = 0
 # ─────────────────────────────────────────────────────────────────────────────
 # LOGGING
 # ─────────────────────────────────────────────────────────────────────────────
-# Logging sends messages to the screen and to vmc_worker.log.
+# Logging sends messages to both the terminal and vmc_worker.log.
+# This is useful for beginners because you can see what the worker is doing step by step,
+# and still have a saved log file if something fails later.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -133,10 +156,12 @@ logging.basicConfig(
 )
 log = logging.getLogger("vmc_worker")
 # All report times are handled in Indian Standard Time.
+# Using one timezone avoids confusion when the computer, API, or server uses a different timezone.
 IST = ZoneInfo("Asia/Kolkata")
 IST_OFFSET = timedelta(hours=5, minutes=30)
 
 # Default chart styling used by all Matplotlib figures.
+# Instead of repeating colors and fonts in every chart function, these settings apply globally.
 plt.rcParams.update({
     "figure.facecolor": "#1a1d27", "axes.facecolor": "#1a1d27",
     "axes.edgecolor": "#2a2d3a",   "axes.labelcolor": "#7a8196",
@@ -146,6 +171,7 @@ plt.rcParams.update({
 })
 
 # Telegram API URL built from the bot token above.
+# Later functions add /sendMessage or /sendDocument to this base URL.
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 
@@ -153,8 +179,11 @@ TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 # SQLITE
 # ─────────────────────────────────────────────────────────────────────────────
 # Creates the SQLite tables and index if they are missing.
+# This function is usually called once when the program starts. It prepares the database
+# so readings, sent reports, QoS scores, and benchmark snapshots all have a place to be stored.
 def init_db():
-    # Open the database file; SQLite creates it automatically if needed.
+    # Open the database file.
+    # If the file does not exist yet, SQLite creates it automatically.
     con = sqlite3.connect(DB_PATH)
     con.execute("""
         CREATE TABLE IF NOT EXISTS readings (
@@ -204,8 +233,10 @@ def init_db():
 
 
 # Saves many readings at once after the daily API fetch.
+# A batch insert is faster than saving each reading one by one, especially for a full day of data.
 def db_insert_batch(rows: list):
     # If the API gave no rows, there is nothing to store.
+    # Returning early avoids opening the database for no reason.
     if not rows:
         return
     con = sqlite3.connect(DB_PATH)
@@ -219,6 +250,7 @@ def db_insert_batch(rows: list):
 
 
 # Saves one reading, mainly used by the optional heartbeat job.
+# The timestamp, flow value, and anomaly flag are written as a single row.
 def db_insert(ts: datetime, flow: float, anom: int):
     con = sqlite3.connect(DB_PATH)
     con.execute(
@@ -230,6 +262,7 @@ def db_insert(ts: datetime, flow: float, anom: int):
 
 
 # Loads recent readings from SQLite into a pandas DataFrame.
+# pandas makes it easier to filter, calculate averages, create charts, and run detectors.
 def db_load_hours(hours: int) -> pd.DataFrame:
     con = sqlite3.connect(DB_PATH)
     since = (datetime.now() - timedelta(hours=hours)).isoformat()
@@ -246,6 +279,7 @@ def db_load_hours(hours: int) -> pd.DataFrame:
 
 
 # Keeps a small history of reports that were sent.
+# This helps the dashboard or logs know what type of report was delivered and when.
 def db_log_report(text: str, rtype: str):
     con = sqlite3.connect(DB_PATH)
     con.execute(
@@ -257,6 +291,7 @@ def db_log_report(text: str, rtype: str):
 
 
 # Finds when a report type was last sent.
+# It reads the newest matching row from sent_reports and converts the saved text back to a datetime.
 def db_last_report_time(rtype: str) -> datetime | None:
     con = sqlite3.connect(DB_PATH)
     row = con.execute(
@@ -268,6 +303,7 @@ def db_last_report_time(rtype: str) -> datetime | None:
 
 
 # Stores the daily Quality of Service result for dashboard trends.
+# INSERT OR REPLACE means the same date can be updated instead of creating duplicate rows.
 def db_save_qos(date_str: str, qos: float, total_readings: int,
                 total_anomalies: int, spike_anomalies: int,
                 night_anomalies: int, supply_windows: int,
@@ -290,6 +326,7 @@ def db_save_qos(date_str: str, qos: float, total_readings: int,
 
 
 # Stores the benchmark pattern that future reports can compare against.
+# A benchmark is the "normal" supply window learned from older data or Jan-Feb patterns.
 def db_save_benchmark_snapshot(benchmark: dict, method: str = "supply_window"):
     """Save the current benchmark so Streamlit can display it."""
     if not benchmark:
@@ -316,6 +353,7 @@ def db_save_benchmark_snapshot(benchmark: dict, method: str = "supply_window"):
              method, benchmark.get("samples", 0))
     
 # Reads the latest seven QoS rows for the trend summary.
+# The daily Telegram report can use this to show whether service quality is improving or dropping.
 def db_load_7day_trend() -> pd.DataFrame:
     """Load last 7 days of QoS scores for trend table in PDF."""
     con = sqlite3.connect(DB_PATH)
@@ -331,6 +369,8 @@ def db_load_7day_trend() -> pd.DataFrame:
 
 
 # Builds a normal supply-window benchmark from older stored readings.
+# It looks at data older than 30 days, detects supply windows for each day, and uses medians
+# so one unusual day does not strongly affect the normal benchmark.
 def build_benchmark(con) -> dict | None:
     """Build benchmark from data older than 30 days stored in DB."""
     cutoff = (datetime.now() - timedelta(days=30)).isoformat()
@@ -363,8 +403,11 @@ def build_benchmark(con) -> dict | None:
 # TELEGRAM SENDERS
 # ─────────────────────────────────────────────────────────────────────────────
 # Sends a plain text Telegram message to each configured chat.
+# The function returns True only if all chats were sent successfully; if one fails,
+# the error is logged and the worker continues.
 def send_message(text: str, chat_ids: list = None) -> bool:
     # Use the default chat list unless another list is provided.
+    # This keeps normal calls short: send_message(report) is enough.
     if chat_ids is None:
         chat_ids = TELEGRAM_CHAT_IDS
     if not chat_ids:
@@ -392,13 +435,17 @@ def send_message(text: str, chat_ids: list = None) -> bool:
     return success
 
 
-# Placeholder for photo sending; currently disabled to avoid extra Telegram uploads.
+# Placeholder for photo sending.
+# The chart-making code still creates image buffers, but this function currently skips upload.
+# If photo sending is needed later, this is the single place to enable it again.
 def send_photo(buf: io.BytesIO, caption: str, chat_ids: list = None) -> bool:
     log.info("send_photo disabled — skipping: %s", caption)
     return False
 
 
 # Sends the generated PDF report as a Telegram document.
+# The PDF is passed as an in-memory BytesIO buffer, so the worker does not need to save
+# a temporary PDF file before sending it.
 def send_pdf(buf: io.BytesIO, filename: str, caption: str,
              chat_ids: list = None) -> bool:
     """Send PDF document via Telegram."""
@@ -431,6 +478,8 @@ def send_pdf(buf: io.BytesIO, filename: str, caption: str,
 # FULL 4-MODEL ANOMALY DETECTOR  (mirrors Streamlit tab 3 run_detectors())
 # ─────────────────────────────────────────────────────────────────────────────
 # Runs four anomaly checks and combines their votes into one final flag.
+# Beginner idea: each model looks for unusual flow in a different way. A row becomes a final
+# anomaly when enough models agree, or when a simple physical rule catches something obvious.
 def run_full_detectors(df: pd.DataFrame,
                        sensitivity: float = Z_SENSITIVITY,
                        contamination: float = CONTAMINATION,
@@ -445,6 +494,7 @@ def run_full_detectors(df: pd.DataFrame,
     """
     df = df.copy()
     # Work on a copy so the original DataFrame is not changed unexpectedly.
+    # This function adds many helper columns, and copying keeps the caller's data safe.
     df["hour"]         = df["timestamp"].dt.hour
     df["dow"]          = df["timestamp"].dt.dayofweek
     df["date"]         = df["timestamp"].dt.date
@@ -467,6 +517,8 @@ def run_full_detectors(df: pd.DataFrame,
     dfa = df[active].copy()
 
     # Method 1: Z-score marks values that are far away from the average.
+    # Example: if most flow readings are near 1000 and one reading is 9000, its Z-score
+    # will be high, so it may be marked as unusual.
     # Z-score (supply hours only)
     supply_hours = dfa[~((dfa["hour"] >= night_start) | (dfa["hour"] <= night_end))]
     if len(supply_hours) > 10:
@@ -481,6 +533,8 @@ def run_full_detectors(df: pd.DataFrame,
     df.loc[dfa.index, "anom_zscore"] = dfa["anom_z"]
 
     # Method 2: IQR marks values outside the usual middle range.
+    # IQR uses the 25% and 75% positions of the data, which makes it less sensitive
+    # to one or two extreme values than a plain average.
     # IQR
     if len(dfa) > 3:
         Q1, Q3 = dfa["flow_rate"].quantile([0.25, 0.75])
@@ -499,6 +553,8 @@ def run_full_detectors(df: pd.DataFrame,
              "flow_diff", "lag_1", "deviation", "hour", "in_supply"]
 
     # Method 3: Isolation Forest is a machine-learning outlier detector.
+    # It looks at several features together, such as flow, rolling averages, hour of day,
+    # and recent changes, then flags points that look easy to separate from normal points.
     # Isolation Forest
     df["anom_iforest"]  = 0
     df["iforest_score"] = 0.0
@@ -514,6 +570,8 @@ def run_full_detectors(df: pd.DataFrame,
         df.loc[dfa.index, "iforest_score"] = dfa["if_score"]
 
     # Method 4: PCA checks whether a reading is hard to rebuild from normal patterns.
+    # If PCA cannot reconstruct a row well, the row may not match the usual relationship
+    # between flow, rolling average, hour, and other features.
     # PCA autoencoder
     df["anom_pca"]  = 0
     df["pca_score"] = 0.0
@@ -537,9 +595,12 @@ def run_full_detectors(df: pd.DataFrame,
                                (df["roll_mean_10"] > 100) &
                                (df["flow_rate"] < df["roll_mean_10"] * 0.4)).astype(int)
     # Count how many models marked each row as unusual.
+    # This is called a vote: higher vote means more detectors agree the row looks suspicious.
     df["model_vote"]    = (df["anom_zscore"] + df["anom_iqr"] +
                            df["anom_iforest"] + df["anom_pca"])
     # Final decision: combine model votes with simple physical rules.
+    # Physical rules catch clear cases like negative flow, very high spikes, or sudden drops;
+    # model votes catch less obvious patterns.
     df["final_anomaly"] = ((df["anom_negative"]   == 1) |
                             (df["anom_spike"]      == 1) |
                             (df["anom_night"]      == 1) |
@@ -552,33 +613,7 @@ def run_full_detectors(df: pd.DataFrame,
 # ─────────────────────────────────────────────────────────────────────────────
 # FORECAST  (mirrors Streamlit tab 4 forecast())
 # ─────────────────────────────────────────────────────────────────────────────
-# Makes a simple future flow estimate using exponential smoothing.
-def forecast_flow(df: pd.DataFrame,
-                  steps: int = FORECAST_STEPS):
-    """
-    Exponential smoothing forecast with trend + 95% CI.
-    Returns (fcast, lo, hi, fts, sm) or (None,)*5 if insufficient data.
-    Identical logic to Streamlit forecast().
-    """
-    active = df[df["flow_rate"] > 0]["flow_rate"].values
-    if len(active) < 10:
-        return None, None, None, None, None
-    alpha = 0.3
-    sm = [active[0]]
-    for v in active[1:]:
-        sm.append(alpha * v + (1 - alpha) * sm[-1])
-    sm = np.array(sm)
-    n  = min(20, len(sm))
-    trend = (sm[-1] - sm[-n]) / n
-    fcast = np.array([sm[-1] + trend * i for i in range(1, steps + 1)])
-    std   = np.std(active[-30:]) if len(active) >= 30 else np.std(active)
-    diffs = df["timestamp"].diff().dt.total_seconds().median() / 60
-    freq  = max(1, int(diffs)) if not np.isnan(diffs) else 3
-    fts   = pd.date_range(
-        start=df["timestamp"].iloc[-1] + pd.Timedelta(minutes=freq),
-        periods=steps, freq=f"{freq}min",
-    )
-    return fcast, fcast - 1.96 * std, fcast + 1.96 * std, fts, sm
+
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -586,6 +621,8 @@ def forecast_flow(df: pd.DataFrame,
 # ═════════════════════════════════════════════════════════════════════════════
 
 # Fetches Jan-Feb history from the VMC API for pattern analysis.
+# The pattern module needs many days of history so it can compare daily shapes, not just
+# single readings.
 def fetch_two_months(year: int = PATTERN_YEAR) -> pd.DataFrame:
     """
     Fetch January + February from the VMC API in 7-day chunks.
@@ -648,6 +685,8 @@ def fetch_two_months(year: int = PATTERN_YEAR) -> pd.DataFrame:
 
 
 # Converts one day of readings into a fixed 24-hour curve for comparison.
+# Different days may have readings at different times, so this function resamples them
+# into the same 24-hour shape before comparing days.
 def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
     """
     Collapse one day's readings into a 24-point curve.
@@ -695,12 +734,14 @@ def normalize_daily_curve(day_df: pd.DataFrame) -> np.ndarray | None:
 
 
 # Measures how different two normalized daily curves are.
+# A smaller distance means the two daily flow patterns look more similar.
 def curve_distance(a: np.ndarray, b: np.ndarray) -> float:
     """Euclidean distance between two 24-point normalised curves."""
     return float(np.sqrt(np.sum((a - b) ** 2)))
 
 
 # Finds the most common daily pattern and compares each day to it.
+# K-Means groups similar days together, then the largest group is treated as the benchmark pattern.
 def find_benchmark_pattern(df: pd.DataFrame,
                             n_clusters: int = PATTERN_K):
     """
@@ -753,6 +794,8 @@ def find_benchmark_pattern(df: pd.DataFrame,
 # CHART GENERATORS — ORIGINAL (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
 # Builds the main 24-hour flow line chart.
+# The chart is saved into a BytesIO buffer, which means it stays in memory instead of being
+# written to an image file on disk.
 def make_daily_chart(df: pd.DataFrame) -> io.BytesIO:
     """Generate 24-hr flow chart with anomaly markers. Returns PNG buffer."""
     fig, ax = plt.subplots(figsize=(10, 4))
@@ -786,6 +829,7 @@ def make_daily_chart(df: pd.DataFrame) -> io.BytesIO:
 
 
 # Builds a bar chart showing average flow for each hour.
+# Grouping by hour helps quickly show which parts of the day had the highest supply.
 def make_hourly_bar_chart(df: pd.DataFrame) -> io.BytesIO:
     """Hourly average flow bar chart."""
     df = df.copy()
@@ -816,6 +860,7 @@ def make_hourly_bar_chart(df: pd.DataFrame) -> io.BytesIO:
 
 
 # Builds a chart that is inserted into the PDF report.
+# This version includes benchmark/supply-window information so the PDF can explain quality of service.
 def make_pdf_chart(df: pd.DataFrame, benchmark: dict,
                    windows: list, qos: float) -> io.BytesIO:
     """4-panel chart for embedding in PDF (white background)."""
@@ -927,6 +972,8 @@ def make_pdf_chart(df: pd.DataFrame, benchmark: dict,
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Creates exploratory charts used to understand the day of data.
+# EDA means Exploratory Data Analysis: these charts help humans inspect trends, spread,
+# rolling averages, and unusual values before trusting the summary numbers.
 def make_eda_charts(df: pd.DataFrame) -> list[io.BytesIO]:
     """
     EDA charts matching Streamlit tab 2:
@@ -1014,6 +1061,8 @@ def make_eda_charts(df: pd.DataFrame) -> list[io.BytesIO]:
 
 
 # Creates charts that explain what the anomaly models found.
+# Instead of only saying "anomaly count = X", these charts show which model flagged what
+# and where those flags happened over time.
 def make_anomaly_charts(df_full: pd.DataFrame) -> list[io.BytesIO]:
     """
     Anomaly detection charts matching Streamlit tab 3:
@@ -1136,6 +1185,8 @@ def make_anomaly_charts(df_full: pd.DataFrame) -> list[io.BytesIO]:
 
 
 # Creates a chart with forecast values and recent residuals.
+# Residuals are the difference between real values and smoothed/expected values.
+# Large residuals can be another sign that flow changed suddenly.
 def make_forecast_chart(df: pd.DataFrame,
                          df_full: pd.DataFrame) -> io.BytesIO | None:
     """
@@ -1216,6 +1267,7 @@ def make_forecast_chart(df: pd.DataFrame,
 
 
 # Creates charts for Jan-Feb pattern matching and clustering.
+# These charts show daily pattern overlays, K-Means groups, similarity scores, and best/worst days.
 def make_pattern_charts(pat_df: pd.DataFrame,
                          n_clusters: int = PATTERN_K,
                          sim_threshold: float = SIM_THRESHOLD
@@ -1418,6 +1470,7 @@ def make_pattern_charts(pat_df: pd.DataFrame,
 # SUPPLY WINDOW DETECTION + QoS  (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
 # Finds continuous time ranges where water flow looks active.
+# A supply window starts when flow rises above the threshold and ends when it drops back down.
 def detect_supply_windows(df: pd.DataFrame,
                            threshold=1.0,
                            min_duration_min=5) -> list[dict]:
@@ -1458,6 +1511,7 @@ def detect_supply_windows(df: pd.DataFrame,
             })
     return windows
 # A DataFrame-friendly version of supply-window detection for one day.
+# It is used by pattern analysis, where the code loops day by day through historical data.
 def detect_supply_windows_df(day_df, threshold=1.0, min_duration_min=5):
     """
     Mirrors Streamlit detect_supply_windows_df — includes start/end_hour_frac.
@@ -1500,6 +1554,7 @@ def detect_supply_windows_df(day_df, threshold=1.0, min_duration_min=5):
 
 
 # Groups many supply windows and chooses a typical benchmark window.
+# Clustering helps find the common supply timing and flow values even when individual days vary.
 def build_benchmark_from_windows(all_windows, n_clusters=6):
     """
     Mirrors Streamlit build_benchmark_from_windows.
@@ -1542,6 +1597,7 @@ def build_benchmark_from_windows(all_windows, n_clusters=6):
 
 
 # Scores one day by comparing its windows with the benchmark.
+# The score is reduced when supply is too early/late, too short/long, or very different in flow.
 def score_day_vs_benchmark(day_windows, benchmark,
                             time_tol_min=30, flow_tol=0.20):
     """
@@ -1582,6 +1638,7 @@ def score_day_vs_benchmark(day_windows, benchmark,
     return round(qos, 1), anomalies, best_win
 
 # Calculates the final QoS percentage and anomaly notes.
+# QoS means Quality of Service. A higher value means the day looked closer to the normal benchmark.
 def compute_qos(windows: list, benchmark: dict,
                 time_tol=30, flow_tol=0.20) -> tuple[float, list[str]]:
     """Compute QoS score (0-100%) and list anomalies."""
@@ -1644,6 +1701,7 @@ def compute_qos(windows: list, benchmark: dict,
 #                         sections appended — nothing removed)
 # ─────────────────────────────────────────────────────────────────────────────
 # Builds the full daily PDF report with tables, charts, and summaries.
+# The report is assembled as a list of ReportLab elements, then written into one PDF buffer.
 def make_pdf_report(df: pd.DataFrame, benchmark: dict,
                     windows: list, qos: float,
                     anomalies: list, total_anom: int,
@@ -2453,7 +2511,7 @@ def make_pdf_report(df: pd.DataFrame, benchmark: dict,
     story.append(cls_tbl)
     story.append(Spacer(1, 0.4*cm))
 
-    # ── Footer ────────────────────────────────────────────────────────────
+
 
     # ── Footer ────────────────────────────────────────────────────────────
     foot_tbl = Table(
@@ -2491,6 +2549,7 @@ _token = None
 
 
 # Logs in to the VMC server and keeps the session cookies for later API calls.
+# Many web APIs require login first; after login, the session remembers authentication details.
 def try_login() -> bool:
     global _token
     if _token:
@@ -2531,6 +2590,7 @@ def try_login() -> bool:
 
 
 # Converts raw API timestamp text into a Python datetime.
+# API timestamps can arrive as strings, so this helper normalizes them before storage and analysis.
 def _parse_ts(raw: str) -> datetime | None:
     if not raw:
         return None
@@ -2547,6 +2607,7 @@ def _parse_ts(raw: str) -> datetime | None:
 
 
 # Pulls timestamp and flow values from one API row, even if field names differ.
+# This makes the parser more flexible because different API endpoints may use different column names.
 def _extract_field(row: dict, fallback_ts: datetime):
     ts = fallback_ts
     for tk in ["DateTime", "dateTime", "timestamp", "time", "Timestamp", "ts"]:
@@ -2575,6 +2636,7 @@ def _extract_field(row: dict, fallback_ts: datetime):
 
 
 # Downloads the last 24 hours of readings from the VMC API.
+# The function tries known history endpoints until one returns usable data.
 def fetch_batch_24hr() -> list[dict]:
     global _token
     now   = datetime.now()
@@ -2628,6 +2690,8 @@ def fetch_batch_24hr() -> list[dict]:
 
 
 # Converts different possible API response shapes into one common row format.
+# APIs may return a list, a dictionary with a data key, or nested rows; this function flattens
+# those possibilities into simple dictionaries with timestamp and flow_rate.
 def _parse_batch_response(data, fallback_ts: datetime) -> list[dict]:
     records = []
     if (isinstance(data, list) and data
@@ -2693,6 +2757,7 @@ def _parse_batch_response(data, fallback_ts: datetime) -> list[dict]:
 
 
 # Gets one latest reading for the optional heartbeat.
+# This is lighter than fetching a full day and is only used when HEARTBEAT_ENABLED is True.
 def fetch_single_reading() -> dict | None:
     global _token
     now   = datetime.now()
@@ -2731,6 +2796,7 @@ def fetch_single_reading() -> dict | None:
 # ANOMALY DETECTION — simple tagger  (unchanged, used for initial row storage)
 # ─────────────────────────────────────────────────────────────────────────────
 # Adds a simple anomaly flag column using basic threshold rules.
+# This is faster and simpler than the full ML detector, so it is useful for basic daily summaries.
 def tag_anomalies(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["is_anomaly"] = 0
@@ -2751,6 +2817,7 @@ def tag_anomalies(df: pd.DataFrame) -> pd.DataFrame:
 # TELEGRAM TEXT REPORT BUILDER  (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
 # Builds the short Telegram text report for the latest day.
+# It calculates totals, averages, peaks, and anomaly counts, then formats them as one message.
 def build_daily_report(df: pd.DataFrame) -> str:
     now_ist  = datetime.now(IST)
     date_str = now_ist.strftime("%d %b %Y, %H:%M IST")
@@ -2826,8 +2893,13 @@ def build_daily_report(df: pd.DataFrame) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Main scheduled job: fetch data, analyze it, send reports, and save results.
+# This is the heart of the worker. It runs at the scheduled report time and performs the full pipeline:
+# login/fetch data, store readings, detect supply windows, calculate QoS, send Telegram messages,
+# generate charts/PDF, and save final scores back to SQLite.
 def job_daily_batch_fetch_and_report():
     # This function is intentionally step-by-step so each report stage is easy to trace.
+    # Each try/except block protects one report feature, so a chart failure does not stop
+    # the rest of the daily report from being sent.
     """
     THE MAIN JOB — runs once per day at REPORT_HOUR:REPORT_MINUTE IST.
 
@@ -3169,6 +3241,8 @@ def job_daily_batch_fetch_and_report():
 
 
 # Optional small job that stores one live reading between daily batch runs.
+# It is useful when you want the dashboard to look fresh during the day without running
+# the full report pipeline every few minutes.
 def job_heartbeat():
     """Optional heartbeat — keeps Streamlit live tab warm."""
     reading = fetch_single_reading()
@@ -3188,6 +3262,7 @@ def job_heartbeat():
 _scheduler = None
 
 # Stops the scheduler cleanly when the program receives Ctrl+C or a stop signal.
+# Without this handler, the program could exit while a scheduled job is still shutting down.
 def _shutdown(signum, frame):
     log.info("Shutting down...")
     if _scheduler:
@@ -3202,8 +3277,10 @@ signal.signal(signal.SIGTERM, _shutdown)
 # MAIN
 # ─────────────────────────────────────────────────────────────────────────────
 # Program entry point: initialize everything and start the scheduler.
+# When you run python vmc_worker.py, Python reaches the bottom of the file and calls main().
 def main():
     # The scheduler object is global so the shutdown handler can stop it later.
+    # main() creates it, and _shutdown() uses it when the user presses Ctrl+C.
     global _scheduler
 
     log.info("════════════════════════════════════")
