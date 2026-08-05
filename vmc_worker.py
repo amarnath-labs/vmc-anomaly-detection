@@ -1183,6 +1183,45 @@ def make_anomaly_charts(df_full: pd.DataFrame) -> list[io.BytesIO]:
     return bufs
 
 
+# Simple Exponential Smoothing (SES) forecast, alpha=0.3.
+# Fits a smoothed level on the active (flow > 0) readings in df, then projects that
+# level forward FORECAST_STEPS readings, with a 95% confidence band that widens
+# with the forecast horizon (since we're less sure the further out we predict).
+# Returns (None, None, None, None, None) when there isn't enough active data to fit on.
+def forecast_flow(df: pd.DataFrame, steps: int = FORECAST_STEPS, alpha: float = 0.3):
+    active = df[df["flow_rate"] > 0].sort_values("timestamp").reset_index(drop=True)
+    if len(active) < 10:
+        return None, None, None, None, None
+
+    values = active["flow_rate"].to_numpy(dtype=float)
+
+    # Fitted (smoothed) values via simple exponential smoothing.
+    sm = np.empty(len(values))
+    sm[0] = values[0]
+    for i in range(1, len(values)):
+        sm[i] = alpha * values[i] + (1 - alpha) * sm[i - 1]
+
+    # Forecast: hold the last smoothed level flat (standard SES forecast).
+    last_level = sm[-1]
+    fc = np.full(steps, last_level)
+
+    # Confidence band widens with sqrt(horizon), based on in-sample residual std.
+    resid_std = float(np.std(values - sm)) if len(values) > 1 else 0.0
+    horizon = np.sqrt(np.arange(1, steps + 1))
+    hi = fc + 1.96 * resid_std * horizon
+    lo = np.clip(fc - 1.96 * resid_std * horizon, 0, None)
+
+    # Forecast timestamps, spaced at the median sampling interval of the active data.
+    if len(active) > 1:
+        freq_min = max(1, int(active["timestamp"].diff().dt.total_seconds().median() / 60))
+    else:
+        freq_min = 5
+    last_ts = active["timestamp"].max()
+    fts = [last_ts + pd.Timedelta(minutes=freq_min * (i + 1)) for i in range(steps)]
+
+    return fc, lo, hi, fts, sm
+
+
 # Creates a chart with forecast values and recent residuals.
 # Residuals are the difference between real values and smoothed/expected values.
 # Large residuals can be another sign that flow changed suddenly.
