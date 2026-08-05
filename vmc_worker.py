@@ -5,6 +5,8 @@ import signal
 import sys
 import os
 import io
+import threading
+import concurrent.futures
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -73,6 +75,7 @@ TELEGRAM_CHAT_IDS = [
 VMC_BASE         = "https://scph1.vmcsmartwater.in:9090"
 
 HISTORY_API_PATHS = [
+    "/data",
     "/ph1/data",
     "/api/history/sensor/Flow/Rate",
     "/api/sensor/Flow/Rate/history",
@@ -84,8 +87,41 @@ REALTIME_API_PATH = "/api/realtime/sensor/Flow/Rate"
 METER_LABEL  = "AIB_FT015"          # human-readable label for PDF/reports
 STATION_NAME = "VMC MJP-5445"      # used in Telegram messages
 OBJECT_NAME = "AIB_FT015"
+VMC_DLP     = "5114"
+VMC_FLOWMETER = "A"
 VMC_USER    = "7644881557"
 VMC_PASS    = "5678"
+
+# --- Multi-tag PDF report config ---
+# TAGS drives the new multi-tag "Daily Analysis Report" PDF (make_multi_tag_pdf_report).
+# Each tag is fetched with its OWN separate API request (objectname), run through the same
+# supply-window / benchmark / QoS pipeline as the single-tag report, and appended as its own
+# section in one combined PDF — mirroring the sample_report_8_tags.pdf layout exactly.
+#
+# NOTE: fill in the real "objectname" value your VMC API expects for each tag below.
+# The placeholders currently reuse the last segment of the PostgreSQL tag path — replace
+# them with whatever string your VMC endpoint actually needs in the ?objectname= param.
+TAGS = [
+    {"name": "DLP-5114", "dlp": "5114", "flowmeter": "A"},
+    {"name": "DLP-5914", "dlp": "5914", "flowmeter": "A"},
+    {"name": "DLP-5921", "dlp": "5921", "flowmeter": "A"},
+    {"name": "DLP-5503", "dlp": "5503", "flowmeter": "A"},
+]
+# Max concurrent worker threads used to fetch all TAGS simultaneously.
+# Capped so we don't open more parallel connections than tags exist, or overload the VMC server.
+TAG_FETCH_MAX_WORKERS = min(10, max(1, len(TAGS)))
+
+# Supply-window detection threshold as a fraction of that tag's own peak flow (10% = 0.10),
+# matching the "Window threshold = X m³/hr (10% of meter peak Y)" note in the PDF.
+TAG_WINDOW_THRESHOLD_PCT = 0.10
+TAG_MIN_WINDOW_DURATION_MIN = 5
+
+# How many days of history to pull per tag when building that tag's benchmark supply slots.
+TAG_BENCHMARK_LOOKBACK_DAYS = 30
+
+# Tolerance used when matching today's windows against benchmark slots for that tag.
+TAG_TIME_TOL_MIN = 30
+TAG_FLOW_TOL_PCT = 0.20
 
 # --- SQLite (shared with Streamlit dashboard) ---
 # SQLite database file shared by this worker and the Streamlit dashboard.
@@ -641,11 +677,7 @@ def fetch_two_months(year: int = PATTERN_YEAR) -> pd.DataFrame:
             try:
                 r = SESSION.get(
                     f"{VMC_BASE}{path}",
-                    params={
-                        "objectname": OBJECT_NAME,
-                        "startTime":  chunk_start.strftime("%Y-%m-%d %H:%M:%S"),
-                        "endTime":    chunk_end.strftime("%Y-%m-%d %H:%M:%S"),
-                    },
+                    params=_history_params(path, chunk_start, chunk_end),
                     timeout=10,
                 )
             except Exception as e:
@@ -665,7 +697,7 @@ def fetch_two_months(year: int = PATTERN_YEAR) -> pd.DataFrame:
             except Exception:
                 continue
 
-            records = _parse_batch_response(data, chunk_end)
+            records = _parse_batch_response(data, chunk_end, scoped=(path == "/data"))
             if len(records) > 1:
                 all_records.extend(records)
                 break   # this path worked — move to next chunk
@@ -2584,6 +2616,8 @@ SESSION.headers.update({
     "Origin":     VMC_BASE,
 })
 _token = None
+# Guards _token/SESSION mutation when multiple tag-fetch threads try to (re)login at once.
+_login_lock = threading.Lock()
 
 
 # Logs in to the VMC server and keeps the session cookies for later API calls.
@@ -2592,6 +2626,14 @@ def try_login() -> bool:
     global _token
     if _token:
         return True
+    with _login_lock:
+        if _token:  # re-check: another thread may have logged in while we waited for the lock
+            return True
+        return _do_login()
+
+
+def _do_login() -> bool:
+    global _token
     try:
         SESSION.get(f"{VMC_BASE}/login", timeout=8)
     except Exception:
@@ -2632,6 +2674,7 @@ def try_login() -> bool:
 def _parse_ts(raw: str) -> datetime | None:
     if not raw:
         return None
+    raw = " ".join(str(raw).strip().split())
     try:
         ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         if ts.tzinfo is not None:
@@ -2673,14 +2716,39 @@ def _extract_field(row: dict, fallback_ts: datetime):
     return next(iter(numeric.values())), ts
 
 
+def _history_params(path: str, start: datetime, end: datetime,
+                    objectname: str = None, dlp: str = None,
+                    flowmeter: str = None) -> dict:
+    params = {
+        "startTime": start.strftime("%Y-%m-%d %H:%M:%S"),
+        "endTime":   end.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    if path == "/data":
+        params["dlp"]       = dlp or VMC_DLP
+        params["flowmeter"] = flowmeter or VMC_FLOWMETER
+    else:
+        params["objectname"] = objectname or OBJECT_NAME
+    return params
+
+
 # Downloads the last 24 hours of readings from the VMC API.
 # The function tries known history endpoints until one returns usable data.
-def fetch_batch_24hr() -> list[dict]:
+#
+# objectname/hours/end let this same function be reused for the multi-tag report:
+# each tag calls it with its own objectname, and the pattern/benchmark lookups call it
+# with a longer "hours" window and/or a different "end" reference point.
+def fetch_batch_24hr(objectname: str = None, hours: int = None,
+                      end: datetime = None, dlp: str = None,
+                      flowmeter: str = None) -> list[dict]:
     global _token
-    now   = datetime.now()
-    start = now - timedelta(hours=BATCH_WINDOW_HOURS)
-    log.info("Fetching %dhr batch: %s → %s",
-             BATCH_WINDOW_HOURS,
+    objectname = objectname or OBJECT_NAME
+    dlp        = dlp or VMC_DLP
+    flowmeter  = flowmeter or VMC_FLOWMETER
+    hours      = hours or BATCH_WINDOW_HOURS
+    now   = end or datetime.now()
+    start = now - timedelta(hours=hours)
+    log.info("Fetching %dhr batch for '%s': %s → %s",
+             hours, objectname,
              start.strftime("%Y-%m-%d %H:%M"),
              now.strftime("%Y-%m-%d %H:%M"))
     for path in HISTORY_API_PATHS:
@@ -2688,11 +2756,9 @@ def fetch_batch_24hr() -> list[dict]:
         try:
             r = SESSION.get(
                 f"{VMC_BASE}{path}",
-                params={
-                    "objectname": OBJECT_NAME,
-                    "startTime":  start.strftime("%Y-%m-%d %H:%M:%S"),
-                    "endTime":    now.strftime("%Y-%m-%d %H:%M:%S"),
-                },
+                params=_history_params(path, start, now,
+                                       objectname=objectname,
+                                       dlp=dlp, flowmeter=flowmeter),
                 timeout=60,
             )
         except Exception as e:
@@ -2711,7 +2777,44 @@ def fetch_batch_24hr() -> list[dict]:
         except Exception:
             log.warning("Endpoint %s non-JSON: %s", path, r.text[:200])
             continue
-        records = _parse_batch_response(data, now)
+
+        # --- DIAGNOSTIC: prove whether the server actually differentiates by objectname ---
+        # All 8 tags are currently returning identical readings/avg/peak/peak-time, which
+        # means either (a) the server ignores `objectname` and always serves the same feed,
+        # or (b) our request isn't sending/matching it correctly. Log the raw shape + a
+        # sample row + any tag-identifier fields actually present, so this can be checked
+        # against what was requested instead of guessing.
+        try:
+            if isinstance(data, list):
+                log.info("RAW[%s] objectname=%s -> list of %d rows", path, objectname, len(data))
+                if data:
+                    log.info("RAW[%s] sample row: %s", path, str(data[0])[:300])
+                    tag_keys = [k for k in data[0].keys() if isinstance(data[0], dict) and
+                                any(x in k.lower() for x in ["tag", "object", "name", "id"])]
+                    if tag_keys:
+                        seen_tags = {str(row.get(k)) for row in data for k in tag_keys if isinstance(row, dict)}
+                        log.info("RAW[%s] distinct tag-like identifiers in response: %s", path, seen_tags)
+            elif isinstance(data, dict):
+                log.info("RAW[%s] objectname=%s -> dict with keys %s", path, objectname, list(data.keys())[:10])
+                log.info("RAW[%s] sample: %s", path, str(data)[:300])
+        except Exception as diag_e:
+            log.debug("RAW diagnostic logging failed (non-fatal): %s", diag_e)
+        # --- end diagnostic ---
+
+        records = _parse_batch_response(data, now, objectname=objectname,
+                                        scoped=(path == "/data"))
+        # The VMC API does not reliably honor startTime/endTime — it can return rows from
+        # well outside the requested window (seen: rows from 12+ days earlier landing in a
+        # "24h" fetch). Nothing downstream re-checks timestamps, so a single bad response
+        # silently contaminates df_today with multi-day data — that's what caused the
+        # supply-window durations of 17000+ minutes and the pattern-band zigzag. Enforce the
+        # window here, client-side, regardless of what the server actually returned.
+        before_filter = len(records)
+        records = [r for r in records if start <= r["timestamp"] <= now]
+        if before_filter != len(records):
+            log.warning("Endpoint %s: dropped %d/%d rows outside requested window [%s -> %s]",
+                        path, before_filter - len(records), before_filter,
+                        start.strftime("%Y-%m-%d %H:%M"), now.strftime("%Y-%m-%d %H:%M"))
         non_zero = [r for r in records if r["flow_rate"] > 0]
         log.info("Endpoint %s — %d records, %d non-zero", path, len(records), len(non_zero))
         if len(non_zero) > 1:
@@ -2723,20 +2826,36 @@ def fetch_batch_24hr() -> list[dict]:
             log.warning("Endpoint %s returned only 1 row — trying next...", path)
         else:
             log.warning("Endpoint %s returned 0 records — trying next...", path)
-    log.error("All history endpoints exhausted.")
+    log.error("All history endpoints exhausted for '%s'.", objectname)
     return []
 
 
 # Converts different possible API response shapes into one common row format.
 # APIs may return a list, a dictionary with a data key, or nested rows; this function flattens
 # those possibilities into simple dictionaries with timestamp and flow_rate.
-def _parse_batch_response(data, fallback_ts: datetime) -> list[dict]:
+def _parse_batch_response(data, fallback_ts: datetime, objectname: str = None,
+                          scoped: bool = False) -> list[dict]:
+    objectname = objectname or OBJECT_NAME
     records = []
     if (isinstance(data, list) and data
             and isinstance(data[0], dict) and "tagname" in data[0]):
-        rows = [d for d in data if d.get("tagname") == OBJECT_NAME]
+        rows = data if scoped else [d for d in data if d.get("tagname") == objectname]
         if not rows:
-            rows = [d for d in data if float(d.get("value") or 0) > 0]
+            # Do NOT fall back to "any row with a positive value" — this endpoint returns
+            # the ENTIRE network's live feed (every sensor, not just the requested tag), so
+            # that fallback was silently grabbing readings from unrelated meters whenever
+            # `objectname` didn't match anything in the response. That's what caused every
+            # tag in the multi-tag report to show identical data: none of the configured
+            # objectnames (FM_Instant_Flow_4910A, etc.) match this API's real tag names
+            # (e.g. AIB_FT015, NMT_FT007), so the fallback fired every time and always
+            # pulled from the same unfiltered pool. Treat a non-match as "no data for this
+            # tag" instead of silently substituting a different meter's readings.
+            available = sorted({str(d.get("tagname")) for d in data if isinstance(d, dict)})
+            log.error(
+                "objectname '%s' not found in response (this endpoint returns the full "
+                "network feed, not a per-tag one). Available tag names include: %s%s",
+                objectname, available[:15], " ..." if len(available) > 15 else "")
+            return []
         for row in rows:
             try:
                 flow = float(row.get("value") or 0)
@@ -2828,6 +2947,590 @@ def fetch_single_reading() -> dict | None:
         return None
     latest = records[-1]
     return {"timestamp": latest["timestamp"], "flow_rate": latest["flow_rate"]}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MULTI-TAG REPORT — parallel per-tag fetch + benchmark + PDF   (NEW)
+# ─────────────────────────────────────────────────────────────────────────────
+# This section builds the "VMC Water Flow — Daily Analysis Report" PDF that repeats
+# a full analysis section for every tag in TAGS. Each tag gets its own separate API
+# request (fetch_batch_24hr(objectname=...)), all fired at once from a thread pool
+# so the wait time is close to the slowest single tag instead of the sum of all of them.
+#
+# Reuses the existing single-tag building blocks: detect_supply_windows_df,
+# tag_anomalies, SPIKE_THRESHOLD/NIGHT_* constants — nothing there was touched.
+
+# Clusters one tag's historical daily supply windows into "benchmark supply slots",
+# mirroring the "Benchmark supply slots (last month)" table. Windows whose peak falls
+# below TAG_WINDOW_THRESHOLD_PCT of that tag's own meter peak are treated as
+# passing/low flow and dropped before clustering, same as the threshold note in the PDF.
+def build_tag_benchmark_slots(all_windows: list, meter_peak: float,
+                               threshold_pct: float = TAG_WINDOW_THRESHOLD_PCT,
+                               distance_t: float = 1.5) -> tuple[list, float]:
+    threshold_value = threshold_pct * meter_peak
+    usable = [w for w in all_windows if w["peak"] >= threshold_value]
+    if not usable:
+        return [], threshold_value
+
+    from scipy.cluster.hierarchy import linkage, fcluster
+    wdf = pd.DataFrame(usable)
+    if len(wdf) == 1:
+        labels = np.array([1])
+    else:
+        try:
+            starts = wdf["start_hour_frac"].values.reshape(-1, 1)
+            Z      = linkage(starts, method="ward")
+            labels = fcluster(Z, t=distance_t, criterion="distance")
+        except Exception:
+            labels = np.ones(len(wdf), dtype=int)
+    wdf["cluster"] = labels
+
+    slots = []
+    for _, group in wdf.groupby("cluster"):
+        slots.append({
+            "start_hour": float(np.median(group["start_hour_frac"])),
+            "end_hour":   float(np.median(group["end_hour_frac"])),
+            "duration":   float(np.median(group["duration"])),
+            "peak":       float(np.median(group["peak"])),
+            "avg":        float(np.median(group["avg"])),
+            "samples":    len(group),
+        })
+    slots.sort(key=lambda s: s["start_hour"])
+    for i, s in enumerate(slots, start=1):
+        s["slot_no"] = i
+    return slots, threshold_value
+
+
+# Compares today's actual supply windows against a tag's benchmark slots, producing the
+# "Benchmark Anomalies" list and a QoS score for that tag. The scoring weights below are
+# a reasonable starting point (tune them if you want the score to track your own SOP more
+# closely) — the underlying deviation logic mirrors score_day_vs_benchmark() above.
+def match_today_vs_benchmark_slots(today_windows: list, benchmark_slots: list,
+                                    time_tol_min: float = TAG_TIME_TOL_MIN,
+                                    flow_tol_pct: float = TAG_FLOW_TOL_PCT) -> tuple[list, float, list]:
+    if not benchmark_slots:
+        return ["No benchmark available yet for this tag"], 50.0, []
+    if not today_windows:
+        return ["No supply windows detected today"], 0.0, []
+
+    anomalies, matched_pairs, used = [], [], set()
+
+    for slot in benchmark_slots:
+        best_i, best_dev = None, None
+        for i, w in enumerate(today_windows):
+            if i in used:
+                continue
+            dev = abs(w["start_hour_frac"] - slot["start_hour"]) * 60
+            if best_dev is None or dev < best_dev:
+                best_i, best_dev = i, dev
+        if best_i is not None and best_dev <= time_tol_min * 3:
+            used.add(best_i)
+            w = today_windows[best_i]
+            matched_pairs.append((slot, w))
+            peak_dev = abs(w["peak"] - slot["peak"]) / max(slot["peak"], 1e-6)
+            avg_dev  = abs(w["avg"]  - slot["avg"])  / max(slot["avg"],  1e-6)
+            if best_dev > time_tol_min:
+                h, m = int(slot["start_hour"]), int((slot["start_hour"] % 1) * 60)
+                anomalies.append(f"Start time off by {best_dev:.0f} min (benchmark: {h:02d}:{m:02d})")
+            if peak_dev > flow_tol_pct:
+                anomalies.append(f"Peak flow deviated by {peak_dev*100:.0f}%")
+            if avg_dev > flow_tol_pct:
+                anomalies.append(f"Avg flow deviated by {avg_dev*100:.0f}%")
+        else:
+            h, m = int(slot["start_hour"]), int((slot["start_hour"] % 1) * 60)
+            anomalies.append(f"Missing expected supply slot at {h:02d}:{m:02d}")
+
+    for i, w in enumerate(today_windows):
+        if i not in used:
+            anomalies.append(
+                f"Extra window at {w['start'].strftime('%H:%M')} not matching any benchmark slot")
+
+    qos = 100.0
+    for a in anomalies:
+        if a.startswith("Missing expected supply slot"):
+            qos -= 15
+        elif a.startswith("Extra window"):
+            qos -= 8
+        elif a.startswith("Start time off"):
+            qos -= 5
+        elif "deviated by" in a:
+            try:
+                pct = float(a.split("deviated by")[1].split("%")[0])
+            except Exception:
+                pct = 20
+            qos -= min(pct, 50) * 0.6
+    qos = round(max(0.0, min(100.0, qos)), 1)
+    return anomalies, qos, matched_pairs
+
+
+# Builds the hourly median + spread ("normal margin band") used by the pattern-band
+# chart, from a tag's lookback history — the last-month equivalent of a "normal day".
+def build_pattern_baseline(df_lookback: pd.DataFrame, bin_minutes: int = 15) -> dict | None:
+    if df_lookback is None or df_lookback.empty:
+        return None
+    df = df_lookback.copy()
+    df["hour_frac"] = df["timestamp"].dt.hour + df["timestamp"].dt.minute / 60
+    df["bin"] = (df["hour_frac"] * 60 // bin_minutes) * bin_minutes / 60
+    grouped = df.groupby("bin")["flow_rate"]
+    median  = grouped.median()
+    std     = grouped.std().fillna(0)
+    order   = np.argsort(median.index.values)
+    return {
+        "bin_hours": median.index.values[order],
+        "median":    median.values[order],
+        "std":       std.values[order],
+    }
+
+
+# Full per-tag fetch + analysis pipeline. Runs inside one worker thread per tag — each
+# tag issues its OWN separate API request (today's 24hr window + a longer lookback
+# window used to build that tag's own benchmark slots and pattern baseline).
+def fetch_tag_data(tag: dict) -> dict:
+    name       = tag["name"]
+    objectname = tag.get("objectname") or tag.get("dlp") or OBJECT_NAME
+    pg_tag     = tag.get("pg_tag") or name
+    dlp        = tag.get("dlp")
+    flowmeter  = tag.get("flowmeter")
+    try:
+        if not try_login():
+            return {"name": name, "pg_tag": pg_tag, "error": "Login failed"}
+
+        now = datetime.now()
+
+        # "Report day" = most recent COMPLETE calendar day (yesterday 00:00 -> today 00:00),
+        # matching the "Report day: most recent complete day" label in the PDF header.
+        # Using end=now here (a rolling 24h-from-now window) would straddle two calendar
+        # dates and break the 24h chart's hour-of-day x-axis (points from two different
+        # days land at the same x position and get connected out of order -> zigzag).
+        report_day_end = datetime.combine(now.date(), datetime.min.time())
+
+        today_records = fetch_batch_24hr(
+            objectname=objectname, hours=BATCH_WINDOW_HOURS, end=report_day_end,
+            dlp=dlp, flowmeter=flowmeter)
+        if not today_records:
+            return {"name": name, "pg_tag": pg_tag, "error": "No data returned from API"}
+        df_today = pd.DataFrame(today_records)
+        df_today = tag_anomalies(df_today).sort_values("timestamp").reset_index(drop=True)
+
+        lookback_records = fetch_batch_24hr(
+            objectname=objectname, hours=TAG_BENCHMARK_LOOKBACK_DAYS * 24, end=report_day_end,
+            dlp=dlp, flowmeter=flowmeter)
+        df_lookback = pd.DataFrame(lookback_records) if lookback_records else df_today.copy()
+
+        meter_peak = float(max(df_lookback["flow_rate"].max(), df_today["flow_rate"].max(), 1.0))
+
+        all_windows = []
+        df_lb = df_lookback.copy()
+        df_lb["date_"] = df_lb["timestamp"].dt.date
+        for _, group in df_lb.groupby("date_"):
+            all_windows.extend(detect_supply_windows_df(
+                group, threshold=1.0, min_duration_min=TAG_MIN_WINDOW_DURATION_MIN))
+        benchmark_slots, threshold_value = build_tag_benchmark_slots(all_windows, meter_peak)
+
+        today_windows = detect_supply_windows_df(
+            df_today, threshold=1.0, min_duration_min=TAG_MIN_WINDOW_DURATION_MIN)
+
+        anomaly_list, qos, _ = match_today_vs_benchmark_slots(today_windows, benchmark_slots)
+        status = "EXCELLENT" if qos >= 85 else "GOOD" if qos >= 70 else "POOR"
+
+        avg_flow  = float(df_today["flow_rate"].mean())
+        peak_flow = float(df_today["flow_rate"].max())
+        peak_str  = pd.Timestamp(df_today.loc[df_today["flow_rate"].idxmax(), "timestamp"]) \
+                        .strftime("%Y-%m-%d %H:%M")
+
+        df_today["_h"] = df_today["timestamp"].dt.hour
+        night_mask = (df_today["_h"] >= NIGHT_START_HR) | (df_today["_h"] <= NIGHT_END_HR)
+        night_anom = int(df_today[night_mask & (df_today["is_anomaly"] == 1)].shape[0])
+        spike_anom = int((df_today["flow_rate"] > SPIKE_THRESHOLD).sum())
+        total_anom = int(df_today["is_anomaly"].sum())
+        df_today   = df_today.drop(columns=["_h"])
+
+        return {
+            "name": name, "pg_tag": pg_tag, "error": None,
+            "df_today": df_today, "meter_peak": meter_peak, "threshold_value": threshold_value,
+            "benchmark_slots": benchmark_slots, "today_windows": today_windows,
+            "anomalies": anomaly_list, "qos": qos, "status": status,
+            "readings": len(df_today), "avg_flow": avg_flow, "peak_flow": peak_flow,
+            "peak_str": peak_str, "spike_anom": spike_anom, "night_anom": night_anom,
+            "total_anom": total_anom, "supply_windows": len(today_windows),
+            "baseline": build_pattern_baseline(df_lookback),
+        }
+    except Exception as e:
+        log.error("fetch_tag_data failed for %s: %s", name, e)
+        return {"name": name, "pg_tag": pg_tag, "error": str(e)}
+
+
+# Fetches + analyzes every tag in `tags` SIMULTANEOUSLY — one request per tag, run in
+# parallel worker threads — and returns results in the SAME ORDER as the input list
+# (not completion order), so the PDF section order stays fixed no matter which
+# request finishes first.
+def fetch_all_tags_parallel(tags: list = None) -> list:
+    tags = tags or TAGS
+    results = [None] * len(tags)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=TAG_FETCH_MAX_WORKERS) as ex:
+        future_to_idx = {ex.submit(fetch_tag_data, tag): i for i, tag in enumerate(tags)}
+        for future in concurrent.futures.as_completed(future_to_idx):
+            idx = future_to_idx[future]
+            try:
+                results[idx] = future.result()
+            except Exception as e:
+                log.error("Parallel fetch failed for %s: %s", tags[idx]["name"], e)
+                results[idx] = {"name": tags[idx]["name"],
+                                "pg_tag": tags[idx].get("pg_tag") or tags[idx].get("name"),
+                                "error": str(e)}
+    for r, t in zip(results, tags):
+        if r and r.get("error"):
+            log.warning("Skipping '%s' in multi-tag PDF — %s", t["name"], r["error"])
+    return results
+
+
+# "<Tag> — 24h flow" chart: today's flow line, red triangle anomaly markers, green-shaded
+# benchmark supply-slot bands, dashed spike-limit line. Uses the dark chart theme already
+# set in plt.rcParams at the top of the file, matching the sample report's look.
+def make_tag_24h_chart(tag_name: str, df_today: pd.DataFrame, benchmark_slots: list,
+                        spike_threshold: float = SPIKE_THRESHOLD) -> io.BytesIO:
+    df = df_today.sort_values("timestamp").copy()
+    # Plot against the REAL timestamp (date + time), not just hour-of-day. df_today is now
+    # guaranteed to be a single calendar day (see fetch_tag_data), so this is monotonic and
+    # matches the sample report's look (rotated "08:00 / 09:00 / ..." tick labels).
+    day0 = df["timestamp"].dt.normalize().iloc[0]
+
+    fig, ax = plt.subplots(figsize=(9, 3.2))
+    ax.plot(df["timestamp"], df["flow_rate"], color="#4a90d9", lw=1.0, label="Flow rate")
+    flow_peak = float(df["flow_rate"].max()) if not df.empty else 0.0
+    y_top = max(flow_peak * 1.25, 1.0)
+
+    anoms = df[df["is_anomaly"] == 1] if "is_anomaly" in df.columns else pd.DataFrame()
+    if not anoms.empty:
+        ax.scatter(anoms["timestamp"], anoms["flow_rate"], color="#e74c3c",
+                   marker="^", s=22, zorder=5, label=f"Anomaly ({len(anoms)})")
+
+    for i, slot in enumerate(benchmark_slots):
+        span_start = day0 + timedelta(hours=slot["start_hour"])
+        span_end   = day0 + timedelta(hours=slot["end_hour"])
+        ax.axvspan(span_start, span_end, color="#2ecc71",
+                   alpha=0.15, label="Benchmark slots" if i == 0 else None)
+
+    if spike_threshold <= y_top:
+        ax.axhline(spike_threshold, color="#f1c40f", lw=0.9, linestyle="--", label="Spike limit")
+    else:
+        ax.text(0.99, 0.94, f"Spike limit {spike_threshold:g} m³/hr above chart scale",
+                transform=ax.transAxes, ha="right", va="top", fontsize=6.5,
+                color="#8a6d00")
+    ax.set_xlim(day0, day0 + timedelta(hours=24))
+    ax.set_ylim(0, y_top)
+    ax.set_xlabel("Hour of day")
+    ax.set_ylabel("Flow rate (m\u00b3/hr)")
+    ax.set_title(f"{tag_name} — 24h flow", fontsize=10, fontweight="bold")
+    ax.legend(fontsize=6.5, loc="upper right")
+    ax.grid(True, alpha=0.25)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+    fig.autofmt_xdate(rotation=25)
+
+    buf = io.BytesIO()
+    fig.tight_layout()
+    fig.savefig(buf, format="png", dpi=150)
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
+# "<Tag> — pattern band" chart: today's flow (green) vs last-month median baseline
+# (red) with a shaded "normal margin band", red dots on points that fall outside it.
+def make_tag_pattern_band_chart(tag_name: str, df_today: pd.DataFrame,
+                                 baseline: dict | None) -> tuple[io.BytesIO, int]:
+    df = df_today.sort_values("timestamp").copy()
+    df["hour_frac"] = df["timestamp"].dt.hour + df["timestamp"].dt.minute / 60
+
+    fig, ax = plt.subplots(figsize=(9, 3.2))
+    n_pattern_anom = 0
+
+    if baseline:
+        bin_hours, median, std = baseline["bin_hours"], baseline["median"], baseline["std"]
+        ax.fill_between(bin_hours, median - std, median + std,
+                        color="#4a90d9", alpha=0.18, label="Normal margin band")
+        ax.plot(bin_hours, median, color="#e74c3c", lw=1.0, label="Median baseline")
+
+        today_med = np.interp(df["hour_frac"], bin_hours, median)
+        today_std = np.interp(df["hour_frac"], bin_hours, std)
+        outside = (df["flow_rate"] > today_med + today_std) | (df["flow_rate"] < today_med - today_std)
+        n_pattern_anom = int(outside.sum())
+    else:
+        outside = pd.Series([False] * len(df), index=df.index)
+
+    ax.plot(df["hour_frac"], df["flow_rate"], color="#2ecc71", lw=1.0, label="Today's flow")
+    if n_pattern_anom:
+        ax.scatter(df.loc[outside, "hour_frac"], df.loc[outside, "flow_rate"],
+                   color="#e74c3c", s=14, zorder=5, label=f"Pattern anomaly ({n_pattern_anom})")
+
+    ax.set_xlim(0, 24)
+    ax.set_xticks(range(0, 25, 2))
+    ax.set_xlabel("Hour of day")
+    ax.set_ylabel("Flow rate (m\u00b3/hr)")
+    ax.set_title(f"{tag_name} — pattern band", fontsize=10, fontweight="bold")
+    ax.legend(fontsize=6.5, loc="upper right")
+    ax.grid(True, alpha=0.25)
+
+    buf = io.BytesIO()
+    fig.tight_layout()
+    fig.savefig(buf, format="png", dpi=150)
+    plt.close(fig)
+    buf.seek(0)
+    return buf, n_pattern_anom
+
+
+# Builds the full "VMC Water Flow — Daily Analysis Report" PDF: one header, then one
+# repeated section per successfully-fetched tag (tags with fetch errors are skipped —
+# see fetch_all_tags_parallel), then one footer. Layout mirrors sample_report_8_tags.pdf.
+def make_multi_tag_pdf_report(tag_results: list) -> io.BytesIO:
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        rightMargin=1.8*cm, leftMargin=1.8*cm,
+        topMargin=1.8*cm,   bottomMargin=1.8*cm,
+    )
+
+    now_ist  = datetime.now(IST)
+    W        = 17.4 * cm
+
+    def qos_color(q):
+        if q >= 85: return colors.HexColor("#27ae60")
+        if q >= 70: return colors.HexColor("#f39c12")
+        return colors.HexColor("#e74c3c")
+
+    title_style = ParagraphStyle("MTTitle", fontSize=17,
+        textColor=colors.HexColor("#1a3a5c"), fontName="Helvetica-Bold",
+        alignment=TA_CENTER, spaceAfter=2)
+    subtitle_style = ParagraphStyle("MTSub", fontSize=8.5,
+        textColor=colors.HexColor("#7f8c8d"), alignment=TA_CENTER, spaceAfter=4)
+    tag_h_style = ParagraphStyle("MTTagH", fontSize=13,
+        textColor=colors.HexColor("#1a3a5c"), fontName="Helvetica-Bold", spaceBefore=4, spaceAfter=2)
+    pg_style = ParagraphStyle("MTPg", fontSize=8.5,
+        textColor=colors.HexColor("#34495e"), spaceAfter=8)
+    h2_style = ParagraphStyle("MTH2", fontSize=10,
+        textColor=colors.HexColor("#2a6496"), fontName="Helvetica-Bold", spaceBefore=8, spaceAfter=3)
+    note_style = ParagraphStyle("MTNote", fontSize=7.5,
+        textColor=colors.HexColor("#7f8c8d"), fontName="Helvetica-Oblique", spaceAfter=3)
+    footer_style = ParagraphStyle("MTFooter", fontSize=7,
+        textColor=colors.white, alignment=TA_CENTER, fontName="Helvetica")
+
+    def summary_table(r):
+        rows = [
+            ["Readings", f"{r['readings']:,}", "QoS Score", f"{r['qos']:.1f}%"],
+            ["Average Flow", f"{r['avg_flow']:.1f} m\u00b3/hr", "Status", r["status"]],
+            ["Peak Flow", f"{r['peak_flow']:.1f} m\u00b3/hr", "Supply Windows", str(r["supply_windows"])],
+            ["Spike Anomalies", str(r["spike_anom"]), "Night Anomalies", str(r["night_anom"])],
+            ["Total Final Anomalies", str(r["total_anom"]), "Peak Time", r["peak_str"]],
+        ]
+        t = Table(rows, colWidths=[W*0.28, W*0.22, W*0.28, W*0.22])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (0,-1), colors.HexColor("#eef2f7")),
+            ("BACKGROUND", (2,0), (2,-1), colors.HexColor("#eef2f7")),
+            ("FONTNAME",   (0,0), (0,-1), "Helvetica-Bold"),
+            ("FONTNAME",   (2,0), (2,-1), "Helvetica-Bold"),
+            ("FONTSIZE",   (0,0), (-1,-1), 8),
+            ("GRID",       (0,0), (-1,-1), 0.5, colors.HexColor("#d5dce3")),
+            ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
+            ("TOPPADDING", (0,0), (-1,-1), 4), ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+        ]))
+        return t
+
+    def benchmark_slots_table(slots):
+        header = ["Slot", "Start", "End", "Duration", "Peak (m\u00b3/hr)", "Avg (m\u00b3/hr)", "Samples"]
+        rows = [header]
+        for s in slots:
+            sh, sm = int(s["start_hour"]), int((s["start_hour"] % 1) * 60)
+            eh, em = int(s["end_hour"]),   int((s["end_hour"]   % 1) * 60)
+            rows.append([
+                f"#{s['slot_no']}", f"{sh:02d}:{sm:02d}", f"{eh:02d}:{em:02d}",
+                f"{s['duration']:.0f} min", f"{s['peak']:.1f}", f"{s['avg']:.1f}", str(s["samples"]),
+            ])
+        t = Table(rows, colWidths=[W*0.09, W*0.13, W*0.13, W*0.17, W*0.18, W*0.18, W*0.12])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#2a6496")),
+            ("TEXTCOLOR",  (0,0), (-1,0), colors.white),
+            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0,0), (-1,-1), 8),
+            ("GRID",       (0,0), (-1,-1), 0.5, colors.HexColor("#d5dce3")),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#f5f8fb")]),
+            ("ALIGN",      (0,0), (-1,-1), "CENTER"),
+            ("TOPPADDING", (0,0), (-1,-1), 4), ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+        ]))
+        return t
+
+    def supply_windows_table(windows):
+        header = ["#", "Start", "End", "Duration (min)", "Peak (m\u00b3/hr)", "Avg (m\u00b3/hr)"]
+        rows = [header]
+        for i, w in enumerate(windows, start=1):
+            rows.append([
+                str(i), w["start"].strftime("%H:%M"), w["end"].strftime("%H:%M"),
+                f"{w['duration']:.0f}", f"{w['peak']:.1f}", f"{w['avg']:.1f}",
+            ])
+        t = Table(rows, colWidths=[W*0.08, W*0.16, W*0.16, W*0.22, W*0.19, W*0.19])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1a3a5c")),
+            ("TEXTCOLOR",  (0,0), (-1,0), colors.white),
+            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0,0), (-1,-1), 8),
+            ("GRID",       (0,0), (-1,-1), 0.5, colors.HexColor("#d5dce3")),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#f5f8fb")]),
+            ("ALIGN",      (0,0), (-1,-1), "CENTER"),
+            ("TOPPADDING", (0,0), (-1,-1), 4), ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+        ]))
+        return t
+
+    def benchmark_anomalies_block(anomaly_list):
+        if not anomaly_list:
+            t = Table([["No benchmark anomalies — service within normal parameters"]], colWidths=[W])
+            t.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,-1), colors.HexColor("#d4f5df")),
+                ("TEXTCOLOR",  (0,0), (-1,-1), colors.HexColor("#1e7e34")),
+                ("FONTNAME",   (0,0), (-1,-1), "Helvetica-Bold"),
+                ("FONTSIZE",   (0,0), (-1,-1), 8.5),
+                ("ALIGN",      (0,0), (-1,-1), "CENTER"),
+                ("TOPPADDING", (0,0), (-1,-1), 6), ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+            ]))
+            return t
+        rows = [["#", "Description"]] + [[str(i), a] for i, a in enumerate(anomaly_list, start=1)]
+        t = Table(rows, colWidths=[W*0.08, W*0.92])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#c0392b")),
+            ("TEXTCOLOR",  (0,0), (-1,0), colors.white),
+            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0,0), (-1,-1), 8),
+            ("GRID",       (0,0), (-1,-1), 0.5, colors.HexColor("#d5dce3")),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#fdecea")]),
+            ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
+            ("TOPPADDING", (0,0), (-1,-1), 4), ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+        ]))
+        return t
+
+    story = []
+    story.append(Paragraph("VMC Water Flow — Daily Analysis Report", title_style))
+    story.append(Paragraph(
+        f"Benchmark: last calendar month | Report day: most recent complete day | "
+        f"Generated: {now_ist.strftime('%d %b %Y %H:%M IST')}", subtitle_style))
+    story.append(HRFlowable(width=W, thickness=1, color=colors.HexColor("#1a3a5c"), spaceAfter=8))
+
+    n_ok = 0
+    for r in tag_results:
+        if not r or r.get("error"):
+            continue  # skipped tag — already logged as a warning in fetch_all_tags_parallel
+        n_ok += 1
+
+        story.append(Paragraph(f"Tag: {r['name']}", tag_h_style))
+        story.append(Paragraph(f"PostgreSQL tag: <b>{r['pg_tag']}</b>", pg_style))
+
+        qos_banner = Table([[f"QoS Score: {r['qos']:.1f}%"]], colWidths=[W])
+        qos_banner.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,-1), qos_color(r["qos"])),
+            ("TEXTCOLOR",  (0,0), (-1,-1), colors.white),
+            ("FONTNAME",   (0,0), (-1,-1), "Helvetica-Bold"),
+            ("FONTSIZE",   (0,0), (-1,-1), 13),
+            ("ALIGN",      (0,0), (-1,-1), "CENTER"),
+            ("TOPPADDING", (0,0), (-1,-1), 8), ("BOTTOMPADDING", (0,0), (-1,-1), 8),
+        ]))
+        story.append(qos_banner)
+        story.append(Spacer(1, 8))
+
+        story.append(Paragraph("Summary", h2_style))
+        story.append(summary_table(r))
+        story.append(Spacer(1, 6))
+
+        story.append(Paragraph("Benchmark supply slots (last month)", h2_style))
+        story.append(Paragraph(
+            f"Window threshold = {r['threshold_value']:.2f} m\u00b3/hr "
+            f"(10% of meter peak {r['meter_peak']:.2f} m\u00b3/hr). "
+            f"Timings below this are ignored as passing/low flow.", note_style))
+        if r["benchmark_slots"]:
+            story.append(benchmark_slots_table(r["benchmark_slots"]))
+        else:
+            story.append(Paragraph("Not enough history yet to build benchmark slots for this tag.", note_style))
+        story.append(Spacer(1, 6))
+
+        story.append(Paragraph("Supply Windows", h2_style))
+        if r["today_windows"]:
+            story.append(supply_windows_table(r["today_windows"]))
+        else:
+            story.append(Paragraph("No supply windows detected today.", note_style))
+        story.append(Spacer(1, 6))
+
+        story.append(Paragraph("Benchmark Anomalies", h2_style))
+        story.append(benchmark_anomalies_block(r["anomalies"]))
+        story.append(Spacer(1, 8))
+
+        story.append(Paragraph("24-hour flow with anomalies and benchmark", h2_style))
+        chart_buf = make_tag_24h_chart(r["name"], r["df_today"], r["benchmark_slots"])
+        story.append(RLImage(chart_buf, width=W, height=W*3.2/9))
+        story.append(Spacer(1, 6))
+
+        story.append(Paragraph("Today's flow vs last-month median pattern band", h2_style))
+        band_buf, _ = make_tag_pattern_band_chart(r["name"], r["df_today"], r["baseline"])
+        story.append(RLImage(band_buf, width=W, height=W*3.2/9))
+
+        story.append(HRFlowable(width=W, thickness=0.6, color=colors.HexColor("#d5dce3"),
+                                spaceBefore=14, spaceAfter=10))
+
+    if n_ok == 0:
+        story.append(Spacer(1, 20))
+        warn_banner = Table([["⚠ No tags returned usable data for this report"]], colWidths=[W])
+        warn_banner.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,-1), colors.HexColor("#e74c3c")),
+            ("TEXTCOLOR",  (0,0), (-1,-1), colors.white),
+            ("FONTNAME",   (0,0), (-1,-1), "Helvetica-Bold"),
+            ("FONTSIZE",   (0,0), (-1,-1), 12),
+            ("ALIGN",      (0,0), (-1,-1), "CENTER"),
+            ("TOPPADDING", (0,0), (-1,-1), 10), ("BOTTOMPADDING", (0,0), (-1,-1), 10),
+        ]))
+        story.append(warn_banner)
+        story.append(Spacer(1, 10))
+        story.append(Paragraph(
+            "None of the configured tag <b>objectname</b> values matched a real tag in the "
+            "VMC API's response. This means the <code>TAGS</code> list in the worker script "
+            "is using placeholder identifiers rather than the API's actual tag names.",
+            note_style))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(
+            "Check <b>vmc_worker.log</b> for lines starting with "
+            "<b>\"objectname '...' not found in response\"</b> — each one lists a sample of "
+            "the real tag names the API returned (e.g. AIB_FT015, NMT_FT007). Match each of "
+            "the 8 configured tags to its correct real name and update the <code>TAGS</code> "
+            "list in the script, then re-run.", note_style))
+        story.append(Spacer(1, 6))
+        errored = [(t.get("name", "?"), t.get("error", "unknown error"))
+                   for t in tag_results if t]
+        if errored:
+            story.append(Spacer(1, 8))
+            story.append(Paragraph("Per-tag status", h2_style))
+            err_rows = [["Tag", "Error"]] + [[n, e] for n, e in errored]
+            err_tbl = Table(err_rows, colWidths=[W*0.3, W*0.7])
+            err_tbl.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1a3a5c")),
+                ("TEXTCOLOR",  (0,0), (-1,0), colors.white),
+                ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+                ("FONTSIZE",   (0,0), (-1,-1), 8),
+                ("GRID",       (0,0), (-1,-1), 0.5, colors.HexColor("#d5dce3")),
+                ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#f5f8fb")]),
+                ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
+                ("TOPPADDING", (0,0), (-1,-1), 4), ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            ]))
+            story.append(err_tbl)
+        story.append(Spacer(1, 20))
+
+    footer_text = Paragraph(
+        f"VMC Water Monitor \u00b7 Auto-generated report \u00b7 "
+        f"{now_ist.strftime('%d %b %Y %H:%M IST')}", footer_style)
+    footer = Table([[footer_text]], colWidths=[W])
+    footer.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), colors.HexColor("#1a3a5c")),
+        ("ALIGN",      (0,0), (-1,-1), "CENTER"),
+        ("TOPPADDING", (0,0), (-1,-1), 6), ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+    ]))
+    story.append(footer)
+
+    doc.build(story, onFirstPage=lambda c, d: None, onLaterPages=lambda c, d: None)
+    buf.seek(0)
+    return buf
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3228,25 +3931,29 @@ def job_daily_batch_fetch_and_report():
     except Exception as e:
         log.error("Pattern analysis failed: %s", e)
 
-    # ── 14. Generate + send enhanced PDF ─────────────────────────────────
+    # ── 14. Fetch every tag in parallel + generate/send the multi-tag PDF ──
+    # REPLACES the old single-tag make_pdf_report() call. Every tag in TAGS gets its
+    # own separate API request, all fired at once from a thread pool (fetch_all_tags_parallel),
+    # then combined into one "VMC Water Flow — Daily Analysis Report" PDF
+    # (make_multi_tag_pdf_report) matching the multi-tag report layout.
     try:
-        log.info("Generating enhanced PDF report...")
-        pdf_buf  = make_pdf_report(
-            df, benchmark, windows, qos, anomalies,
-            total_anom, avg_flow, peak_flow, peak_str,
-            spike_anom, night_anom,
-            df_full=df_full,
-            pat_summary=pat_summary,
-            pat_chart_bufs=pat_chart_bufs,
-        )
+        log.info("Fetching all %d tags in parallel...", len(TAGS))
+        tag_results = fetch_all_tags_parallel(TAGS)
+        n_ok = sum(1 for r in tag_results if r and not r.get("error"))
+        log.info("Multi-tag fetch complete: %d/%d tags OK", n_ok, len(TAGS))
+
+        log.info("Generating multi-tag PDF report...")
+        pdf_buf  = make_multi_tag_pdf_report(tag_results)
         filename = f"VMC_QoS_{datetime.now().strftime('%Y%m%d')}.pdf"
+        avg_qos  = (np.mean([r["qos"] for r in tag_results if r and not r.get("error")])
+                    if n_ok else 0.0)
         send_pdf(pdf_buf, filename,
-                        caption=(f"📄 {STATION_NAME} Daily QoS Report — "
+                        caption=(f"📄 {STATION_NAME} Daily Analysis Report — "
                           f"{datetime.now().strftime('%d %b %Y')} — "
-                          f"QoS: {qos:.1f}%"))
-        log.info("Enhanced PDF report sent")
+                          f"{n_ok}/{len(TAGS)} tags — Avg QoS: {avg_qos:.1f}%"))
+        log.info("Multi-tag PDF report sent")
     except Exception as e:
-        log.error("PDF report failed: %s", e)
+        log.error("Multi-tag PDF report failed: %s", e)
 
     # ── 15. Persist QoS + benchmark to DB ────────────────────────────────
     date_str_today = datetime.now(IST).strftime("%Y-%m-%d")
