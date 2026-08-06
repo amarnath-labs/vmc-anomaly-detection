@@ -98,14 +98,54 @@ VMC_PASS    = "5678"
 # supply-window / benchmark / QoS pipeline as the single-tag report, and appended as its own
 # section in one combined PDF — mirroring the sample_report_8_tags.pdf layout exactly.
 #
-# NOTE: fill in the real "objectname" value your VMC API expects for each tag below.
-# The placeholders currently reuse the last segment of the PostgreSQL tag path — replace
-# them with whatever string your VMC endpoint actually needs in the ?objectname= param.
+# `name` is printed as the section label, `pg_tag` is printed exactly like the
+# target report, and `objectname` is the shorter API lookup key used by VMC.
+# Add `dlp`/`flowmeter` only for tags that should use the /data endpoint.
 TAGS = [
-    {"name": "DLP-5114", "dlp": "5114", "flowmeter": "A"},
-    {"name": "DLP-5914", "dlp": "5914", "flowmeter": "A"},
-    {"name": "DLP-5921", "dlp": "5921", "flowmeter": "A"},
-    {"name": "DLP-5503", "dlp": "5503", "flowmeter": "A"},
+    {
+        "name": "RTU-4910-A",
+        "objectname": "FM_Instant_Flow_4910A",
+        "pg_tag": "RTUs.RTU_2DL.RTU_JAMBUA_4910.RTU_Data_Tags.FM_Instant_Flow",
+    },
+    {
+        "name": "RTU-4910-B",
+        "objectname": "FM2_Instant_Flow_4910B",
+        "pg_tag": "RTUs.RTU_2DL.RTU_JAMBUA_4910.RTU_Data_Tags.FM2_Instant_Flow",
+    },
+    {
+        "name": "RTU-4910-D",
+        "objectname": "FM4_Instant_Flow_4910D",
+        "pg_tag": "RTUs.RTU_2DL.RTU_JAMBUA_4910.RTU_Data_Tags.FM4_Instant_Flow",
+    },
+    {
+        "name": "DLP-4954-A",
+        "objectname": "FMA_AI1_4954A",
+        "pg_tag": "VMC.DLP1.JAM.JAM-4954.Tags.FMA.AI1",
+        "dlp": "4954",
+        "flowmeter": "A",
+    },
+    {
+        "name": "DLP-4962-B",
+        "objectname": "FMB_BI1_4962B",
+        "pg_tag": "VMC.DLP2.JAM.JAM-4962.Tags.FMB.BI1",
+        "dlp": "4962",
+        "flowmeter": "B",
+    },
+    {
+        "name": "RTU-6294-A",
+        "objectname": "FM_Instant_Flow_6294A",
+        "pg_tag": "RTUs.RTU_Template.RTU_1dl.RTU_JAMBUA_6294.RTU_Data_Tags.FM_Instant_Flow",
+    },
+    {
+        "name": "RTU-6429-A",
+        "objectname": "FM_Instant_Flow_6429A",
+        "pg_tag": "RTUs.RTU_Template.RTU_1dl.RTU_JAMBUA_6429.RTU_Data_Tags.FM_Instant_Flow",
+    },
+    {
+        "name": "RTU-4909-A",
+        "objectname": "FM_Instant_Flow_4909A",
+        "pg_tag": "RTUs.RTU_1DL.RTU_JAMBUA_4909.RTU_Data_Tags.FM_Instant_Flow",
+    },
 ]
 # Max concurrent worker threads used to fetch all TAGS simultaneously.
 # Capped so we don't open more parallel connections than tags exist, or overload the VMC server.
@@ -2724,8 +2764,10 @@ def _history_params(path: str, start: datetime, end: datetime,
         "endTime":   end.strftime("%Y-%m-%d %H:%M:%S"),
     }
     if path == "/data":
-        params["dlp"]       = dlp or VMC_DLP
-        params["flowmeter"] = flowmeter or VMC_FLOWMETER
+        if not dlp or not flowmeter:
+            return None
+        params["dlp"]       = dlp
+        params["flowmeter"] = flowmeter
     else:
         params["objectname"] = objectname or OBJECT_NAME
     return params
@@ -2741,9 +2783,11 @@ def fetch_batch_24hr(objectname: str = None, hours: int = None,
                       end: datetime = None, dlp: str = None,
                       flowmeter: str = None) -> list[dict]:
     global _token
+    use_default_meter = objectname is None and dlp is None and flowmeter is None
     objectname = objectname or OBJECT_NAME
-    dlp        = dlp or VMC_DLP
-    flowmeter  = flowmeter or VMC_FLOWMETER
+    if use_default_meter:
+        dlp       = VMC_DLP
+        flowmeter = VMC_FLOWMETER
     hours      = hours or BATCH_WINDOW_HOURS
     now   = end or datetime.now()
     start = now - timedelta(hours=hours)
@@ -2753,12 +2797,17 @@ def fetch_batch_24hr(objectname: str = None, hours: int = None,
              now.strftime("%Y-%m-%d %H:%M"))
     for path in HISTORY_API_PATHS:
         log.info("Trying endpoint: %s", path)
+        params = _history_params(path, start, now,
+                                 objectname=objectname,
+                                 dlp=dlp, flowmeter=flowmeter)
+        if params is None:
+            log.info("Skipping endpoint %s for '%s' because no dlp/flowmeter was configured",
+                     path, objectname)
+            continue
         try:
             r = SESSION.get(
                 f"{VMC_BASE}{path}",
-                params=_history_params(path, start, now,
-                                       objectname=objectname,
-                                       dlp=dlp, flowmeter=flowmeter),
+                params=params,
                 timeout=60,
             )
         except Exception as e:
@@ -2830,6 +2879,22 @@ def fetch_batch_24hr(objectname: str = None, hours: int = None,
     return []
 
 
+def _row_tag_value(row: dict) -> str | None:
+    for key in ["tagname", "tagName", "objectname", "objectName", "name"]:
+        value = row.get(key)
+        if value:
+            return str(value)
+    return None
+
+
+def _row_matches_objectname(row: dict, objectname: str) -> bool:
+    tag_value = _row_tag_value(row)
+    if not tag_value:
+        return True
+    target = str(objectname)
+    return tag_value == target or tag_value.startswith(f"{target}.")
+
+
 # Converts different possible API response shapes into one common row format.
 # APIs may return a list, a dictionary with a data key, or nested rows; this function flattens
 # those possibilities into simple dictionaries with timestamp and flow_rate.
@@ -2838,8 +2903,8 @@ def _parse_batch_response(data, fallback_ts: datetime, objectname: str = None,
     objectname = objectname or OBJECT_NAME
     records = []
     if (isinstance(data, list) and data
-            and isinstance(data[0], dict) and "tagname" in data[0]):
-        rows = data if scoped else [d for d in data if d.get("tagname") == objectname]
+            and isinstance(data[0], dict) and _row_tag_value(data[0]) is not None):
+        rows = data if scoped else [d for d in data if _row_matches_objectname(d, objectname)]
         if not rows:
             # Do NOT fall back to "any row with a positive value" — this endpoint returns
             # the ENTIRE network's live feed (every sensor, not just the requested tag), so
@@ -2850,7 +2915,8 @@ def _parse_batch_response(data, fallback_ts: datetime, objectname: str = None,
             # (e.g. AIB_FT015, NMT_FT007), so the fallback fired every time and always
             # pulled from the same unfiltered pool. Treat a non-match as "no data for this
             # tag" instead of silently substituting a different meter's readings.
-            available = sorted({str(d.get("tagname")) for d in data if isinstance(d, dict)})
+            available = sorted({_row_tag_value(d) for d in data
+                                if isinstance(d, dict) and _row_tag_value(d)})
             log.error(
                 "objectname '%s' not found in response (this endpoint returns the full "
                 "network feed, not a per-tag one). Available tag names include: %s%s",
@@ -3316,6 +3382,7 @@ def make_multi_tag_pdf_report(tag_results: list) -> io.BytesIO:
 
     def summary_table(r):
         rows = [
+            ["Metric", "Value", "Metric", "Value"],
             ["Readings", f"{r['readings']:,}", "QoS Score", f"{r['qos']:.1f}%"],
             ["Average Flow", f"{r['avg_flow']:.1f} m\u00b3/hr", "Status", r["status"]],
             ["Peak Flow", f"{r['peak_flow']:.1f} m\u00b3/hr", "Supply Windows", str(r["supply_windows"])],
@@ -3324,10 +3391,12 @@ def make_multi_tag_pdf_report(tag_results: list) -> io.BytesIO:
         ]
         t = Table(rows, colWidths=[W*0.28, W*0.22, W*0.28, W*0.22])
         t.setStyle(TableStyle([
-            ("BACKGROUND", (0,0), (0,-1), colors.HexColor("#eef2f7")),
-            ("BACKGROUND", (2,0), (2,-1), colors.HexColor("#eef2f7")),
-            ("FONTNAME",   (0,0), (0,-1), "Helvetica-Bold"),
-            ("FONTNAME",   (2,0), (2,-1), "Helvetica-Bold"),
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1a3a5c")),
+            ("TEXTCOLOR",  (0,0), (-1,0), colors.white),
+            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#eef2f7")]),
+            ("FONTNAME",   (0,1), (0,-1), "Helvetica-Bold"),
+            ("FONTNAME",   (2,1), (2,-1), "Helvetica-Bold"),
             ("FONTSIZE",   (0,0), (-1,-1), 8),
             ("GRID",       (0,0), (-1,-1), 0.5, colors.HexColor("#d5dce3")),
             ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),

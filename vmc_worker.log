@@ -4173,3 +4173,1279 @@ Reshape your data either using array.reshape(-1, 1) if your data has a single fe
 2026-08-06 02:16:35 [INFO] Scheduler running. Next daily batch at 06:00 IST. Ctrl+C to stop.
 2026-08-06 02:16:35 [INFO] Added job "job_daily_batch_fetch_and_report" to job store "default"
 2026-08-06 02:16:35 [INFO] Scheduler started
+2026-08-06 02:21:21 [INFO] ════════════════════════════════════
+2026-08-06 02:21:21 [INFO]   VMC Worker (Batch Mode + Full Analysis) starting
+2026-08-06 02:21:21 [INFO]   DB         : C:\Users\amarn\Downloads\final3\vmc_readings.db
+2026-08-06 02:21:21 [INFO]   Batch fetch: every 24 hr (1 API call/day)
+2026-08-06 02:21:21 [INFO]   Report at  : 06:00 IST
+2026-08-06 02:21:21 [INFO]   Heartbeat  : OFF
+2026-08-06 02:21:21 [INFO]   Chats      : 1
+2026-08-06 02:21:21 [INFO]   Pattern yr : 2026  k=6  threshold=75%
+2026-08-06 02:21:21 [INFO] ════════════════════════════════════
+2026-08-06 02:21:21 [INFO] DB ready: vmc_readings.db
+2026-08-06 02:21:21 [INFO] Login OK via /login
+2026-08-06 02:21:21 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-08-06 02:21:21 [INFO] Running initial batch fetch on startup...
+2026-08-06 02:21:21 [INFO] === Daily batch job started ===
+2026-08-06 02:21:21 [INFO] Fetching 24hr batch for 'AIB_FT015': 2026-08-05 02:21 → 2026-08-06 02:21
+2026-08-06 02:21:21 [INFO] Trying endpoint: /data
+2026-08-06 02:21:22 [INFO] RAW[/data] objectname=AIB_FT015 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:21:22 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  02:22:08', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  02:22:08', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  02:25:08', 'va
+2026-08-06 02:21:22 [INFO] Endpoint /data — 482 records, 0 non-zero
+2026-08-06 02:21:22 [WARNING] Endpoint /data has 482 records but ALL ARE ZERO — trying next
+2026-08-06 02:21:22 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:21:23 [INFO] RAW[/ph1/data] objectname=AIB_FT015 -> list of 249 rows
+2026-08-06 02:21:23 [INFO] RAW[/ph1/data] sample row: {'tagName': 'AIB_FT015.Response.Value', 'timestamp': '2026-08-05 02:30:42.000', 'value': 882}
+2026-08-06 02:21:23 [INFO] RAW[/ph1/data] distinct tag-like identifiers in response: {'AIB_FT015.Response.Value'}
+2026-08-06 02:21:23 [INFO] Endpoint /ph1/data — 249 records, 246 non-zero
+2026-08-06 02:21:23 [INFO] Endpoint /ph1/data OK — using 246 non-zero records
+2026-08-06 02:21:23 [INFO] Batch inserted 246 rows into DB
+2026-08-06 02:21:23 [INFO] 24hr filter applied: 246 rows kept for today's analysis
+2026-08-06 02:21:23 [WARNING] No historical benchmark — using hardcoded fallback (24hr continuous supply)
+2026-08-06 02:21:23 [INFO] === QoS DIAGNOSTIC ===
+2026-08-06 02:21:23 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-08-06 02:21:23 [INFO] Windows found: 1
+2026-08-06 02:21:23 [INFO] Total rows: 246
+2026-08-06 02:21:23 [INFO] Flow max=960.0  min=30.0  mean=471.5
+2026-08-06 02:21:23 [INFO] Rows with flow > 1.0: 246
+2026-08-06 02:21:23 [INFO] Rows with flow > 0:   246
+2026-08-06 02:21:23 [INFO] Rows with flow == 0:  0
+2026-08-06 02:21:23 [INFO] Sample timestamps: [Timestamp('2026-08-05 02:30:42'), Timestamp('2026-08-05 02:55:58.670000'), Timestamp('2026-08-05 03:00:51')]
+2026-08-06 02:21:23 [INFO] Sample flow values: [882.0, 900.0, 912.0, 870.0, 900.0, 870.0, 900.0, 888.0, 870.0, 900.0]
+2026-08-06 02:21:23 [INFO] Window 1: start=2026-08-05 02:30:42 end=2026-08-06 02:12:40.230000 dur=1422min peak=960.0 avg=471.5
+2026-08-06 02:21:23 [INFO] === END DIAGNOSTIC ===
+2026-08-06 02:21:23 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-08-06 02:21:23 [INFO] Supply windows found: 1
+2026-08-06 02:21:23 [INFO] Flow stats: max=960.0 mean=471.5 zeros=0
+2026-08-06 02:21:24 [INFO] Telegram message sent to 871141199
+2026-08-06 02:21:25 [INFO] Telegram message sent to 871141199
+2026-08-06 02:21:25 [INFO] Daily text report sent
+2026-08-06 02:21:25 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — 24hr flow chart
+2026-08-06 02:21:25 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — Avg flow by hour
+2026-08-06 02:21:25 [INFO] Running 4-model anomaly detector...
+2026-08-06 02:21:25 [INFO] Full detector: 9 final anomalies (4-model ensemble)
+2026-08-06 02:21:26 [INFO] Telegram message sent to 871141199
+2026-08-06 02:21:26 [INFO] Generating EDA charts...
+2026-08-06 02:21:26 [INFO] send_photo disabled — skipping: 📈 EDA: Full flow time series
+2026-08-06 02:21:26 [INFO] send_photo disabled — skipping: 📈 EDA: Rolling mean ± 2σ band
+2026-08-06 02:21:26 [INFO] send_photo disabled — skipping: 📈 EDA: Flow distribution histogram
+2026-08-06 02:21:26 [INFO] EDA charts sent: 3
+2026-08-06 02:21:26 [INFO] Generating anomaly model charts...
+2026-08-06 02:21:27 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model comparison
+2026-08-06 02:21:27 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Final flags timeline
+2026-08-06 02:21:27 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model-by-model overlay
+2026-08-06 02:21:27 [INFO] Anomaly charts sent: 3
+2026-08-06 02:21:27 [INFO] Generating forecast chart...
+2026-08-06 02:21:27 [INFO] send_photo disabled — skipping: 📈 Forecast: Exp. smoothing +30 steps ahead
+2026-08-06 02:21:27 [INFO] Forecast chart sent
+2026-08-06 02:21:27 [INFO] Fetching Jan–Feb 2026 for pattern analysis...
+2026-08-06 02:21:38 [INFO] Pattern data: 19384 readings, 59 days
+2026-08-06 02:21:39 [ERROR] find_benchmark_pattern failed: Expected 2D array, got 1D array instead:
+array=[].
+Reshape your data either using array.reshape(-1, 1) if your data has a single feature or array.reshape(1, -1) if it contains a single sample.
+2026-08-06 02:21:39 [INFO] Fetching all 4 tags in parallel...
+2026-08-06 02:21:39 [INFO] Fetching 24hr batch for '5114': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:21:39 [INFO] Trying endpoint: /data
+2026-08-06 02:21:39 [INFO] Fetching 24hr batch for '5914': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:21:39 [INFO] Trying endpoint: /data
+2026-08-06 02:21:39 [INFO] Fetching 24hr batch for '5921': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:21:39 [INFO] Fetching 24hr batch for '5503': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:21:39 [INFO] Trying endpoint: /data
+2026-08-06 02:21:39 [INFO] Trying endpoint: /data
+2026-08-06 02:21:40 [INFO] RAW[/data] objectname=5114 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:21:40 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:21:40 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:21:40 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:21:40 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:21:40 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:21:40 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:21:40 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:21:40 [INFO] RAW[/data] objectname=5503 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:21:40 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP1.KRL.KRL-5503.Tags.FMA.AI2', 'timestamp': '2026-08-05  11:11:58', 'value': 0}, {'tagName': 'VMC.DLP1.KRL.KRL-5503.Tags.FMA.AI1', 'timestamp': '2026-08-05  11:11:58', 'value': 0}, {'tagName': 'VMC.DLP1.KRL.KRL-5503.Tags.FMA.AI2', 'timestamp': '2026-08-05  11:14:58', 'va
+2026-08-06 02:21:40 [INFO] Endpoint /data — 257 records, 229 non-zero
+2026-08-06 02:21:40 [INFO] Endpoint /data OK — using 229 non-zero records
+2026-08-06 02:21:40 [INFO] Fetching 720hr batch for '5503': 2026-07-07 00:00 → 2026-08-06 00:00
+2026-08-06 02:21:40 [INFO] Trying endpoint: /data
+2026-08-06 02:21:40 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:21:40 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:21:41 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:21:41 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:21:41 [INFO] RAW[/data] objectname=5921 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:21:41 [INFO] RAW[/data] objectname=5914 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:21:41 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP3.KRL.KRL-5921.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:14', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5921.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:14', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5921.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:14', 'va
+2026-08-06 02:21:41 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP3.KRL.KRL-5914.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:18', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5914.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:18', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5914.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:18', 'va
+2026-08-06 02:21:41 [INFO] Endpoint /data — 476 records, 109 non-zero
+2026-08-06 02:21:41 [INFO] Endpoint /data — 310 records, 114 non-zero
+2026-08-06 02:21:41 [INFO] Endpoint /data OK — using 109 non-zero records
+2026-08-06 02:21:41 [INFO] Endpoint /data OK — using 114 non-zero records
+2026-08-06 02:21:41 [INFO] Fetching 720hr batch for '5921': 2026-07-07 00:00 → 2026-08-06 00:00
+2026-08-06 02:21:41 [INFO] Fetching 720hr batch for '5914': 2026-07-07 00:00 → 2026-08-06 00:00
+2026-08-06 02:21:41 [INFO] Trying endpoint: /data
+2026-08-06 02:21:41 [INFO] Trying endpoint: /data
+2026-08-06 02:21:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=5114 -> list of 122 rows
+2026-08-06 02:21:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '750.000000', 'timestamp': 1785962560230, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T20:45:27.000Z'}
+2026-08-06 02:21:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'GOA_FT002', 'NMT_FT004', 'MNG_FT048', 'SYB_FT011', 'FAJ_FTE02', 'MVR_FT57', 'POLY_FT64', 'STJ_FT058', 'LBH_FT71', 'KPT_FT067', 'SAJ_FT62', 'SDR_FT55', 'VAD_GSR2_FT006', 'MJP_FT029', 'GOT_FTE20', 'KPT_FT068', 'MAH_FT066', 'SDR_FT53', 'NMT_FT013', 'CHJ_FT008', 'MBR_FT36', 'NMT_FT012', 'AKT_FTE18', 'RAI_FTE03', 'MAF_FT050', 'SKD_FT047', 'VAD_GSR1_FT007', 'GER_FT069', 'KHW_FT047', 'NDH_FT040', 'PGT_FT018', 'FTP_FT039', 'NMT_FT015', 'POI_FTE09', 'NMT_FT006', 'MNG_FT068', 'SDR_FT54', 'SDR_FT52', 'NDM_FT049', 'SYB_FT009', 'GJW_FT021', 'MKP_FTE27', 'NHO_FTE24', 'SKD_FT001', 'HRI_GSR1_FT04', 'NMT_FT003', 'NMT_FT007', 'SYM_FT076', 'NVL_FT042', 'GBT_FT023', 'CHV_FTE23', 'SBP_FT28', 'STJ_FTE30', 'MJP_FTE22', 'STL_FT045', 'KAL_FTE34', 'ALW_FT064', 'MAF_FT070', 'SJP_FTE25', 'JAI_FT026', 'KRL_FT35', 'HRI_GSR2_FT03', 'FAJ_FTE01', 'SIN_FTE77', 'TAR_FT002', 'KLI_FT032', 'POI_FTE08', 'AJW_GSR1_FT031', 'NLD_FT020', 'LBH_FT12', 'SSN_FTE32', 'SYP_FTE36', 'BPD_FT33', 'GYT_FTE17', 'KPT_FT066', 'STJ_FT059', 'STJ_FTE29', 'MAH_FT046', 'WAR_FT016', 'BND_FT65', 'ANG_FT061', 'NMT_FT008', 'ANG_FT060', 'BOB_FT70', 'DSM_FT043', 'DOD_FTE06', 'PGT_FT019', 'POLY_FT63', 'LBB_FT74', 'SHR_FTE10', 'RAI_FTE04', 'SAM_GSR1_FT14', 'NMT_FT001', 'GJW_FTE081', 'NMT_FT005', 'DOD_FTE05', 'PGT_FT017', 'LBB_FT75', 'TAR_FTE19', 'DWT_FTE07', 'KPR_FTE26', 'DTR_FTE28', 'SDR_FT56', 'MBR_FT72', 'SAM_GSR2_FT13', 'SDN_FT041', 'WRD_FTE31', 'BKW_FT24', 'BHP_FTE78', 'SYB_FT010', 'KAL_FTE33', 'VSN_FTE21', 'TDJ_FT05', 'SYP_FT073', 'JAI_GSR3_FT027', 'AJW_GSR2_FT030', 'PAR_FT037', 'AIB_FT015', 'NMT_FT010', 'SDR_FT51', 'JGD_BOOSTER_FT038', 'TPO_FT034'}
+2026-08-06 02:21:41 [ERROR] objectname '5114' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:21:41 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:21:41 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:21:41 [ERROR] All history endpoints exhausted for '5114'.
+2026-08-06 02:21:44 [INFO] RAW[/data] objectname=5914 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:21:44 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP3.KRL.KRL-5914.Tags.FMA.AI1', 'timestamp': '2026-07-07  00:02:30', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5914.Tags.FMA.AI2', 'timestamp': '2026-07-07  00:02:30', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5914.Tags.FMA.AI2', 'timestamp': '2026-07-07  00:13:09', 'va
+2026-08-06 02:21:44 [INFO] Endpoint /data — 9981 records, 2661 non-zero
+2026-08-06 02:21:44 [INFO] Endpoint /data OK — using 2661 non-zero records
+2026-08-06 02:21:46 [INFO] RAW[/data] objectname=5503 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:21:46 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP1.KRL.KRL-5503.Tags.FMA.AI2', 'timestamp': '2026-07-07  00:02:59', 'value': 165.44686889648438}, {'tagName': 'VMC.DLP1.KRL.KRL-5503.Tags.FMA.AI1', 'timestamp': '2026-07-07  00:02:59', 'value': 2.7749560307711363}, {'tagName': 'VMC.DLP1.KRL.KRL-5503.Tags.FMA.AI2', 'times
+2026-08-06 02:21:46 [INFO] Endpoint /data — 12165 records, 11998 non-zero
+2026-08-06 02:21:46 [INFO] Endpoint /data OK — using 11998 non-zero records
+2026-08-06 02:21:47 [INFO] RAW[/data] objectname=5921 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:21:47 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP3.KRL.KRL-5921.Tags.FMA.AI2', 'timestamp': '2026-07-07  00:00:14', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5921.Tags.FMA.AI1', 'timestamp': '2026-07-07  00:00:14', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5921.Tags.FMA.AI1', 'timestamp': '2026-07-07  00:03:14', 'va
+2026-08-06 02:21:47 [INFO] Endpoint /data — 11827 records, 2869 non-zero
+2026-08-06 02:21:47 [INFO] Endpoint /data OK — using 2869 non-zero records
+2026-08-06 02:21:47 [WARNING] Skipping 'DLP-5114' in multi-tag PDF — No data returned from API
+2026-08-06 02:21:47 [INFO] Multi-tag fetch complete: 3/4 tags OK
+2026-08-06 02:21:47 [INFO] Generating multi-tag PDF report...
+2026-08-06 02:21:51 [INFO] PDF sent to 871141199
+2026-08-06 02:21:51 [INFO] Multi-tag PDF report sent
+2026-08-06 02:21:51 [INFO] QoS score saved: 2026-08-06 = 43.8%
+2026-08-06 02:21:51 [INFO] Benchmark snapshot saved (supply_window, 1 samples)
+2026-08-06 02:21:51 [INFO] === Daily batch job complete: 246 readings, 65 anomalies, QoS 43.8%, pattern_days=N/A ===
+2026-08-06 02:21:51 [INFO] Scheduler running. Next daily batch at 06:00 IST. Ctrl+C to stop.
+2026-08-06 02:21:51 [INFO] Added job "job_daily_batch_fetch_and_report" to job store "default"
+2026-08-06 02:21:51 [INFO] Scheduler started
+2026-08-06 02:43:55 [INFO] ════════════════════════════════════
+2026-08-06 02:43:55 [INFO]   VMC Worker (Batch Mode + Full Analysis) starting
+2026-08-06 02:43:55 [INFO]   DB         : C:\Users\amarn\Downloads\final3\vmc_readings.db
+2026-08-06 02:43:55 [INFO]   Batch fetch: every 24 hr (1 API call/day)
+2026-08-06 02:43:55 [INFO]   Report at  : 06:00 IST
+2026-08-06 02:43:55 [INFO]   Heartbeat  : OFF
+2026-08-06 02:43:55 [INFO]   Chats      : 1
+2026-08-06 02:43:55 [INFO]   Pattern yr : 2026  k=6  threshold=75%
+2026-08-06 02:43:55 [INFO] ════════════════════════════════════
+2026-08-06 02:43:55 [INFO] DB ready: vmc_readings.db
+2026-08-06 02:43:55 [INFO] Login OK via /login
+2026-08-06 02:43:55 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-08-06 02:43:55 [INFO] Running initial batch fetch on startup...
+2026-08-06 02:43:55 [INFO] === Daily batch job started ===
+2026-08-06 02:43:55 [INFO] Fetching 24hr batch for 'AIB_FT015': 2026-08-05 02:43 → 2026-08-06 02:43
+2026-08-06 02:43:55 [INFO] Trying endpoint: /data
+2026-08-06 02:43:56 [INFO] RAW[/data] objectname=AIB_FT015 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:43:56 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  02:46:08', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  02:46:08', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  02:49:08', 'va
+2026-08-06 02:43:56 [INFO] Endpoint /data — 482 records, 0 non-zero
+2026-08-06 02:43:56 [WARNING] Endpoint /data has 482 records but ALL ARE ZERO — trying next
+2026-08-06 02:43:56 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:43:57 [INFO] RAW[/ph1/data] objectname=AIB_FT015 -> list of 250 rows
+2026-08-06 02:43:57 [INFO] RAW[/ph1/data] sample row: {'tagName': 'AIB_FT015.Response.Value', 'timestamp': '2026-08-05 02:55:58.670', 'value': 900}
+2026-08-06 02:43:57 [INFO] RAW[/ph1/data] distinct tag-like identifiers in response: {'AIB_FT015.Response.Value'}
+2026-08-06 02:43:57 [INFO] Endpoint /ph1/data — 250 records, 247 non-zero
+2026-08-06 02:43:57 [INFO] Endpoint /ph1/data OK — using 247 non-zero records
+2026-08-06 02:43:57 [INFO] Batch inserted 247 rows into DB
+2026-08-06 02:43:57 [INFO] 24hr filter applied: 247 rows kept for today's analysis
+2026-08-06 02:43:57 [WARNING] No historical benchmark — using hardcoded fallback (24hr continuous supply)
+2026-08-06 02:43:57 [INFO] === QoS DIAGNOSTIC ===
+2026-08-06 02:43:57 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-08-06 02:43:57 [INFO] Windows found: 1
+2026-08-06 02:43:57 [INFO] Total rows: 247
+2026-08-06 02:43:57 [INFO] Flow max=960.0  min=30.0  mean=472.0
+2026-08-06 02:43:57 [INFO] Rows with flow > 1.0: 247
+2026-08-06 02:43:57 [INFO] Rows with flow > 0:   247
+2026-08-06 02:43:57 [INFO] Rows with flow == 0:  0
+2026-08-06 02:43:57 [INFO] Sample timestamps: [Timestamp('2026-08-05 02:55:58.670000'), Timestamp('2026-08-05 03:00:51'), Timestamp('2026-08-05 03:03:56.550000')]
+2026-08-06 02:43:57 [INFO] Sample flow values: [900.0, 912.0, 870.0, 900.0, 870.0, 900.0, 888.0, 870.0, 900.0, 870.0]
+2026-08-06 02:43:57 [INFO] Window 1: start=2026-08-05 02:55:58.670000 end=2026-08-06 02:40:39.690000 dur=1425min peak=960.0 avg=472.0
+2026-08-06 02:43:57 [INFO] === END DIAGNOSTIC ===
+2026-08-06 02:43:57 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-08-06 02:43:57 [INFO] Supply windows found: 1
+2026-08-06 02:43:57 [INFO] Flow stats: max=960.0 mean=472.0 zeros=0
+2026-08-06 02:43:58 [INFO] Telegram message sent to 871141199
+2026-08-06 02:43:59 [INFO] Telegram message sent to 871141199
+2026-08-06 02:43:59 [INFO] Daily text report sent
+2026-08-06 02:43:59 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — 24hr flow chart
+2026-08-06 02:43:59 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — Avg flow by hour
+2026-08-06 02:43:59 [INFO] Running 4-model anomaly detector...
+2026-08-06 02:43:59 [INFO] Full detector: 9 final anomalies (4-model ensemble)
+2026-08-06 02:44:00 [INFO] Telegram message sent to 871141199
+2026-08-06 02:44:00 [INFO] Generating EDA charts...
+2026-08-06 02:44:00 [INFO] send_photo disabled — skipping: 📈 EDA: Full flow time series
+2026-08-06 02:44:00 [INFO] send_photo disabled — skipping: 📈 EDA: Rolling mean ± 2σ band
+2026-08-06 02:44:00 [INFO] send_photo disabled — skipping: 📈 EDA: Flow distribution histogram
+2026-08-06 02:44:00 [INFO] EDA charts sent: 3
+2026-08-06 02:44:00 [INFO] Generating anomaly model charts...
+2026-08-06 02:44:01 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model comparison
+2026-08-06 02:44:01 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Final flags timeline
+2026-08-06 02:44:01 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model-by-model overlay
+2026-08-06 02:44:01 [INFO] Anomaly charts sent: 3
+2026-08-06 02:44:01 [INFO] Generating forecast chart...
+2026-08-06 02:44:01 [INFO] send_photo disabled — skipping: 📈 Forecast: Exp. smoothing +30 steps ahead
+2026-08-06 02:44:01 [INFO] Forecast chart sent
+2026-08-06 02:44:01 [INFO] Fetching Jan–Feb 2026 for pattern analysis...
+2026-08-06 02:44:13 [INFO] Pattern data: 19384 readings, 59 days
+2026-08-06 02:44:14 [ERROR] find_benchmark_pattern failed: Expected 2D array, got 1D array instead:
+array=[].
+Reshape your data either using array.reshape(-1, 1) if your data has a single feature or array.reshape(1, -1) if it contains a single sample.
+2026-08-06 02:44:14 [INFO] Fetching all 8 tags in parallel...
+2026-08-06 02:44:14 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_4910A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:44:14 [INFO] Trying endpoint: /data
+2026-08-06 02:44:14 [INFO] Fetching 24hr batch for 'FM2_Instant_Flow_4910B': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:44:14 [INFO] Trying endpoint: /data
+2026-08-06 02:44:14 [INFO] Fetching 24hr batch for 'FM4_Instant_Flow_4910D': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:44:14 [INFO] Trying endpoint: /data
+2026-08-06 02:44:14 [INFO] Fetching 24hr batch for 'FMA_AI1_4954A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:44:14 [INFO] Trying endpoint: /data
+2026-08-06 02:44:14 [INFO] Fetching 24hr batch for 'FMB_BI1_4962B': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:44:14 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_6294A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:44:14 [INFO] Trying endpoint: /data
+2026-08-06 02:44:14 [INFO] Trying endpoint: /data
+2026-08-06 02:44:14 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_6429A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:44:14 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_4909A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:44:14 [INFO] Trying endpoint: /data
+2026-08-06 02:44:14 [INFO] Trying endpoint: /data
+2026-08-06 02:44:15 [INFO] RAW[/data] objectname=FM_Instant_Flow_4910A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:44:15 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:44:15 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:44:15 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:44:15 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:44:15 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:44:15 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:44:15 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:44:15 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:44:15 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:44:15 [INFO] RAW[/data] objectname=FMB_BI1_4962B -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:44:15 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:44:15 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:44:15 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:44:15 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:44:15 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:44:15 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:44:15 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:44:15 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:44:15 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:44:15 [INFO] RAW[/data] objectname=FM_Instant_Flow_4909A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:44:15 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:44:15 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:44:15 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:44:15 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:44:15 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:44:15 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:44:15 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_4910A -> list of 122 rows
+2026-08-06 02:44:15 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:44:15 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'CHV_FTE23', 'MBR_FT36', 'KAL_FTE34', 'MAH_FT066', 'SBP_FT28', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'LBB_FT75', 'SDR_FT56', 'NMT_FT015', 'FAJ_FTE02', 'SIN_FTE77', 'NMT_FT003', 'KPR_FTE26', 'PGT_FT019', 'MAF_FT070', 'JGD_BOOSTER_FT038', 'BND_FT65', 'GJW_FT021', 'MKP_FTE27', 'JAI_FT026', 'SYB_FT010', 'NDH_FT040', 'JAI_GSR3_FT027', 'NMT_FT012', 'SDR_FT53', 'HRI_GSR1_FT04', 'NMT_FT006', 'HRI_GSR2_FT03', 'KPT_FT067', 'VAD_GSR1_FT007', 'AJW_GSR1_FT031', 'ALW_FT064', 'RAI_FTE04', 'PAR_FT037', 'MJP_FTE22', 'GOA_FT002', 'ANG_FT061', 'WRD_FTE31', 'BPD_FT33', 'MNG_FT048', 'DOD_FTE06', 'BHP_FTE78', 'PGT_FT018', 'STJ_FT058', 'LBH_FT12', 'NMT_FT001', 'KRL_FT35', 'SYB_FT009', 'SDR_FT54', 'WAR_FT016', 'GYT_FTE17', 'SDN_FT041', 'SAM_GSR2_FT13', 'KPT_FT066', 'DOD_FTE05', 'STJ_FTE29', 'SHR_FTE10', 'GJW_FTE081', 'DTR_FTE28', 'LBB_FT74', 'FTP_FT039', 'CHJ_FT008', 'NVL_FT042', 'POI_FTE09', 'SYP_FT073', 'KLI_FT032', 'MNG_FT068', 'NHO_FTE24', 'SAJ_FT62', 'GOT_FTE20', 'STJ_FT059', 'TDJ_FT05', 'KAL_FTE33', 'PGT_FT017', 'GER_FT069', 'AIB_FT015', 'TAR_FTE19', 'SYM_FT076', 'SYB_FT011', 'NDM_FT049', 'STL_FT045', 'SDR_FT52', 'STJ_FTE30', 'AJW_GSR2_FT030', 'ANG_FT060', 'FAJ_FTE01', 'DSM_FT043', 'POI_FTE08', 'POLY_FT63', 'KHW_FT047', 'POLY_FT64', 'LBH_FT71', 'NMT_FT005', 'DWT_FTE07', 'NMT_FT008', 'MAF_FT050', 'TPO_FT034', 'SKD_FT047', 'MBR_FT72', 'NMT_FT010', 'RAI_FTE03', 'MAH_FT046', 'BKW_FT24', 'VSN_FTE21', 'GBT_FT023', 'SYP_FTE36', 'NLD_FT020', 'SDR_FT51', 'SKD_FT001', 'SDR_FT55', 'SAM_GSR1_FT14', 'AKT_FTE18', 'NMT_FT007', 'BOB_FT70', 'MJP_FT029', 'KPT_FT068', 'MVR_FT57', 'NMT_FT013', 'NMT_FT004', 'VAD_GSR2_FT006'}
+2026-08-06 02:44:15 [ERROR] objectname 'FM_Instant_Flow_4910A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:44:15 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:44:15 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:44:15 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_4910A'.
+2026-08-06 02:44:15 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:44:15 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:44:15 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:44:15 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:44:15 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:44:15 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:44:15 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:44:15 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FMB_BI1_4962B -> list of 122 rows
+2026-08-06 02:44:15 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:44:15 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'CHV_FTE23', 'MBR_FT36', 'KAL_FTE34', 'MAH_FT066', 'SBP_FT28', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'LBB_FT75', 'SDR_FT56', 'NMT_FT015', 'FAJ_FTE02', 'SIN_FTE77', 'NMT_FT003', 'KPR_FTE26', 'PGT_FT019', 'MAF_FT070', 'JGD_BOOSTER_FT038', 'BND_FT65', 'GJW_FT021', 'MKP_FTE27', 'JAI_FT026', 'SYB_FT010', 'NDH_FT040', 'JAI_GSR3_FT027', 'NMT_FT012', 'SDR_FT53', 'HRI_GSR1_FT04', 'NMT_FT006', 'HRI_GSR2_FT03', 'KPT_FT067', 'VAD_GSR1_FT007', 'AJW_GSR1_FT031', 'ALW_FT064', 'RAI_FTE04', 'PAR_FT037', 'MJP_FTE22', 'GOA_FT002', 'ANG_FT061', 'WRD_FTE31', 'BPD_FT33', 'MNG_FT048', 'DOD_FTE06', 'BHP_FTE78', 'PGT_FT018', 'STJ_FT058', 'LBH_FT12', 'NMT_FT001', 'KRL_FT35', 'SYB_FT009', 'SDR_FT54', 'WAR_FT016', 'GYT_FTE17', 'SDN_FT041', 'SAM_GSR2_FT13', 'KPT_FT066', 'DOD_FTE05', 'STJ_FTE29', 'SHR_FTE10', 'GJW_FTE081', 'DTR_FTE28', 'LBB_FT74', 'FTP_FT039', 'CHJ_FT008', 'NVL_FT042', 'POI_FTE09', 'SYP_FT073', 'KLI_FT032', 'MNG_FT068', 'NHO_FTE24', 'SAJ_FT62', 'GOT_FTE20', 'STJ_FT059', 'TDJ_FT05', 'KAL_FTE33', 'PGT_FT017', 'GER_FT069', 'AIB_FT015', 'TAR_FTE19', 'SYM_FT076', 'SYB_FT011', 'NDM_FT049', 'STL_FT045', 'SDR_FT52', 'STJ_FTE30', 'AJW_GSR2_FT030', 'ANG_FT060', 'FAJ_FTE01', 'DSM_FT043', 'POI_FTE08', 'POLY_FT63', 'KHW_FT047', 'POLY_FT64', 'LBH_FT71', 'NMT_FT005', 'DWT_FTE07', 'NMT_FT008', 'MAF_FT050', 'TPO_FT034', 'SKD_FT047', 'MBR_FT72', 'NMT_FT010', 'RAI_FTE03', 'MAH_FT046', 'BKW_FT24', 'VSN_FTE21', 'GBT_FT023', 'SYP_FTE36', 'NLD_FT020', 'SDR_FT51', 'SKD_FT001', 'SDR_FT55', 'SAM_GSR1_FT14', 'AKT_FTE18', 'NMT_FT007', 'BOB_FT70', 'MJP_FT029', 'KPT_FT068', 'MVR_FT57', 'NMT_FT013', 'NMT_FT004', 'VAD_GSR2_FT006'}
+2026-08-06 02:44:15 [ERROR] objectname 'FMB_BI1_4962B' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:44:15 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:44:15 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:44:15 [ERROR] All history endpoints exhausted for 'FMB_BI1_4962B'.
+2026-08-06 02:44:16 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:44:16 [INFO] RAW[/data] objectname=FM4_Instant_Flow_4910D -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:44:16 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:44:16 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:44:16 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:44:16 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_4909A -> list of 122 rows
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'CHV_FTE23', 'MBR_FT36', 'KAL_FTE34', 'MAH_FT066', 'SBP_FT28', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'LBB_FT75', 'SDR_FT56', 'NMT_FT015', 'FAJ_FTE02', 'SIN_FTE77', 'NMT_FT003', 'KPR_FTE26', 'PGT_FT019', 'MAF_FT070', 'JGD_BOOSTER_FT038', 'BND_FT65', 'GJW_FT021', 'MKP_FTE27', 'JAI_FT026', 'SYB_FT010', 'NDH_FT040', 'JAI_GSR3_FT027', 'NMT_FT012', 'SDR_FT53', 'HRI_GSR1_FT04', 'NMT_FT006', 'HRI_GSR2_FT03', 'KPT_FT067', 'VAD_GSR1_FT007', 'AJW_GSR1_FT031', 'ALW_FT064', 'RAI_FTE04', 'PAR_FT037', 'MJP_FTE22', 'GOA_FT002', 'ANG_FT061', 'WRD_FTE31', 'BPD_FT33', 'MNG_FT048', 'DOD_FTE06', 'BHP_FTE78', 'PGT_FT018', 'STJ_FT058', 'LBH_FT12', 'NMT_FT001', 'KRL_FT35', 'SYB_FT009', 'SDR_FT54', 'WAR_FT016', 'GYT_FTE17', 'SDN_FT041', 'SAM_GSR2_FT13', 'KPT_FT066', 'DOD_FTE05', 'STJ_FTE29', 'SHR_FTE10', 'GJW_FTE081', 'DTR_FTE28', 'LBB_FT74', 'FTP_FT039', 'CHJ_FT008', 'NVL_FT042', 'POI_FTE09', 'SYP_FT073', 'KLI_FT032', 'MNG_FT068', 'NHO_FTE24', 'SAJ_FT62', 'GOT_FTE20', 'STJ_FT059', 'TDJ_FT05', 'KAL_FTE33', 'PGT_FT017', 'GER_FT069', 'AIB_FT015', 'TAR_FTE19', 'SYM_FT076', 'SYB_FT011', 'NDM_FT049', 'STL_FT045', 'SDR_FT52', 'STJ_FTE30', 'AJW_GSR2_FT030', 'ANG_FT060', 'FAJ_FTE01', 'DSM_FT043', 'POI_FTE08', 'POLY_FT63', 'KHW_FT047', 'POLY_FT64', 'LBH_FT71', 'NMT_FT005', 'DWT_FTE07', 'NMT_FT008', 'MAF_FT050', 'TPO_FT034', 'SKD_FT047', 'MBR_FT72', 'NMT_FT010', 'RAI_FTE03', 'MAH_FT046', 'BKW_FT24', 'VSN_FTE21', 'GBT_FT023', 'SYP_FTE36', 'NLD_FT020', 'SDR_FT51', 'SKD_FT001', 'SDR_FT55', 'SAM_GSR1_FT14', 'AKT_FTE18', 'NMT_FT007', 'BOB_FT70', 'MJP_FT029', 'KPT_FT068', 'MVR_FT57', 'NMT_FT013', 'NMT_FT004', 'VAD_GSR2_FT006'}
+2026-08-06 02:44:16 [ERROR] objectname 'FM_Instant_Flow_4909A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:44:16 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:44:16 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_4909A'.
+2026-08-06 02:44:16 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:44:16 [INFO] RAW[/data] objectname=FM_Instant_Flow_6294A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:44:16 [INFO] RAW[/data] objectname=FMA_AI1_4954A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:44:16 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:44:16 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:44:16 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:44:16 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:44:16 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:44:16 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:44:16 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:44:16 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:44:16 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:44:16 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:44:16 [INFO] RAW[/data] objectname=FM2_Instant_Flow_4910B -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:44:16 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:44:16 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:44:16 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:44:16 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:44:16 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM4_Instant_Flow_4910D -> list of 122 rows
+2026-08-06 02:44:16 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'CHV_FTE23', 'MBR_FT36', 'KAL_FTE34', 'MAH_FT066', 'SBP_FT28', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'LBB_FT75', 'SDR_FT56', 'NMT_FT015', 'FAJ_FTE02', 'SIN_FTE77', 'NMT_FT003', 'KPR_FTE26', 'PGT_FT019', 'MAF_FT070', 'JGD_BOOSTER_FT038', 'BND_FT65', 'GJW_FT021', 'MKP_FTE27', 'JAI_FT026', 'SYB_FT010', 'NDH_FT040', 'JAI_GSR3_FT027', 'NMT_FT012', 'SDR_FT53', 'HRI_GSR1_FT04', 'NMT_FT006', 'HRI_GSR2_FT03', 'KPT_FT067', 'VAD_GSR1_FT007', 'AJW_GSR1_FT031', 'ALW_FT064', 'RAI_FTE04', 'PAR_FT037', 'MJP_FTE22', 'GOA_FT002', 'ANG_FT061', 'WRD_FTE31', 'BPD_FT33', 'MNG_FT048', 'DOD_FTE06', 'BHP_FTE78', 'PGT_FT018', 'STJ_FT058', 'LBH_FT12', 'NMT_FT001', 'KRL_FT35', 'SYB_FT009', 'SDR_FT54', 'WAR_FT016', 'GYT_FTE17', 'SDN_FT041', 'SAM_GSR2_FT13', 'KPT_FT066', 'DOD_FTE05', 'STJ_FTE29', 'SHR_FTE10', 'GJW_FTE081', 'DTR_FTE28', 'LBB_FT74', 'FTP_FT039', 'CHJ_FT008', 'NVL_FT042', 'POI_FTE09', 'SYP_FT073', 'KLI_FT032', 'MNG_FT068', 'NHO_FTE24', 'SAJ_FT62', 'GOT_FTE20', 'STJ_FT059', 'TDJ_FT05', 'KAL_FTE33', 'PGT_FT017', 'GER_FT069', 'AIB_FT015', 'TAR_FTE19', 'SYM_FT076', 'SYB_FT011', 'NDM_FT049', 'STL_FT045', 'SDR_FT52', 'STJ_FTE30', 'AJW_GSR2_FT030', 'ANG_FT060', 'FAJ_FTE01', 'DSM_FT043', 'POI_FTE08', 'POLY_FT63', 'KHW_FT047', 'POLY_FT64', 'LBH_FT71', 'NMT_FT005', 'DWT_FTE07', 'NMT_FT008', 'MAF_FT050', 'TPO_FT034', 'SKD_FT047', 'MBR_FT72', 'NMT_FT010', 'RAI_FTE03', 'MAH_FT046', 'BKW_FT24', 'VSN_FTE21', 'GBT_FT023', 'SYP_FTE36', 'NLD_FT020', 'SDR_FT51', 'SKD_FT001', 'SDR_FT55', 'SAM_GSR1_FT14', 'AKT_FTE18', 'NMT_FT007', 'BOB_FT70', 'MJP_FT029', 'KPT_FT068', 'MVR_FT57', 'NMT_FT013', 'NMT_FT004', 'VAD_GSR2_FT006'}
+2026-08-06 02:44:16 [ERROR] objectname 'FM4_Instant_Flow_4910D' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:44:16 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:44:16 [ERROR] All history endpoints exhausted for 'FM4_Instant_Flow_4910D'.
+2026-08-06 02:44:16 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:44:16 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:44:16 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_6294A -> list of 122 rows
+2026-08-06 02:44:16 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'CHV_FTE23', 'MBR_FT36', 'KAL_FTE34', 'MAH_FT066', 'SBP_FT28', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'LBB_FT75', 'SDR_FT56', 'NMT_FT015', 'FAJ_FTE02', 'SIN_FTE77', 'NMT_FT003', 'KPR_FTE26', 'PGT_FT019', 'MAF_FT070', 'JGD_BOOSTER_FT038', 'BND_FT65', 'GJW_FT021', 'MKP_FTE27', 'JAI_FT026', 'SYB_FT010', 'NDH_FT040', 'JAI_GSR3_FT027', 'NMT_FT012', 'SDR_FT53', 'HRI_GSR1_FT04', 'NMT_FT006', 'HRI_GSR2_FT03', 'KPT_FT067', 'VAD_GSR1_FT007', 'AJW_GSR1_FT031', 'ALW_FT064', 'RAI_FTE04', 'PAR_FT037', 'MJP_FTE22', 'GOA_FT002', 'ANG_FT061', 'WRD_FTE31', 'BPD_FT33', 'MNG_FT048', 'DOD_FTE06', 'BHP_FTE78', 'PGT_FT018', 'STJ_FT058', 'LBH_FT12', 'NMT_FT001', 'KRL_FT35', 'SYB_FT009', 'SDR_FT54', 'WAR_FT016', 'GYT_FTE17', 'SDN_FT041', 'SAM_GSR2_FT13', 'KPT_FT066', 'DOD_FTE05', 'STJ_FTE29', 'SHR_FTE10', 'GJW_FTE081', 'DTR_FTE28', 'LBB_FT74', 'FTP_FT039', 'CHJ_FT008', 'NVL_FT042', 'POI_FTE09', 'SYP_FT073', 'KLI_FT032', 'MNG_FT068', 'NHO_FTE24', 'SAJ_FT62', 'GOT_FTE20', 'STJ_FT059', 'TDJ_FT05', 'KAL_FTE33', 'PGT_FT017', 'GER_FT069', 'AIB_FT015', 'TAR_FTE19', 'SYM_FT076', 'SYB_FT011', 'NDM_FT049', 'STL_FT045', 'SDR_FT52', 'STJ_FTE30', 'AJW_GSR2_FT030', 'ANG_FT060', 'FAJ_FTE01', 'DSM_FT043', 'POI_FTE08', 'POLY_FT63', 'KHW_FT047', 'POLY_FT64', 'LBH_FT71', 'NMT_FT005', 'DWT_FTE07', 'NMT_FT008', 'MAF_FT050', 'TPO_FT034', 'SKD_FT047', 'MBR_FT72', 'NMT_FT010', 'RAI_FTE03', 'MAH_FT046', 'BKW_FT24', 'VSN_FTE21', 'GBT_FT023', 'SYP_FTE36', 'NLD_FT020', 'SDR_FT51', 'SKD_FT001', 'SDR_FT55', 'SAM_GSR1_FT14', 'AKT_FTE18', 'NMT_FT007', 'BOB_FT70', 'MJP_FT029', 'KPT_FT068', 'MVR_FT57', 'NMT_FT013', 'NMT_FT004', 'VAD_GSR2_FT006'}
+2026-08-06 02:44:16 [ERROR] objectname 'FM_Instant_Flow_6294A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:44:16 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:44:16 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_6294A'.
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FMA_AI1_4954A -> list of 122 rows
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'CHV_FTE23', 'MBR_FT36', 'KAL_FTE34', 'MAH_FT066', 'SBP_FT28', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'LBB_FT75', 'SDR_FT56', 'NMT_FT015', 'FAJ_FTE02', 'SIN_FTE77', 'NMT_FT003', 'KPR_FTE26', 'PGT_FT019', 'MAF_FT070', 'JGD_BOOSTER_FT038', 'BND_FT65', 'GJW_FT021', 'MKP_FTE27', 'JAI_FT026', 'SYB_FT010', 'NDH_FT040', 'JAI_GSR3_FT027', 'NMT_FT012', 'SDR_FT53', 'HRI_GSR1_FT04', 'NMT_FT006', 'HRI_GSR2_FT03', 'KPT_FT067', 'VAD_GSR1_FT007', 'AJW_GSR1_FT031', 'ALW_FT064', 'RAI_FTE04', 'PAR_FT037', 'MJP_FTE22', 'GOA_FT002', 'ANG_FT061', 'WRD_FTE31', 'BPD_FT33', 'MNG_FT048', 'DOD_FTE06', 'BHP_FTE78', 'PGT_FT018', 'STJ_FT058', 'LBH_FT12', 'NMT_FT001', 'KRL_FT35', 'SYB_FT009', 'SDR_FT54', 'WAR_FT016', 'GYT_FTE17', 'SDN_FT041', 'SAM_GSR2_FT13', 'KPT_FT066', 'DOD_FTE05', 'STJ_FTE29', 'SHR_FTE10', 'GJW_FTE081', 'DTR_FTE28', 'LBB_FT74', 'FTP_FT039', 'CHJ_FT008', 'NVL_FT042', 'POI_FTE09', 'SYP_FT073', 'KLI_FT032', 'MNG_FT068', 'NHO_FTE24', 'SAJ_FT62', 'GOT_FTE20', 'STJ_FT059', 'TDJ_FT05', 'KAL_FTE33', 'PGT_FT017', 'GER_FT069', 'AIB_FT015', 'TAR_FTE19', 'SYM_FT076', 'SYB_FT011', 'NDM_FT049', 'STL_FT045', 'SDR_FT52', 'STJ_FTE30', 'AJW_GSR2_FT030', 'ANG_FT060', 'FAJ_FTE01', 'DSM_FT043', 'POI_FTE08', 'POLY_FT63', 'KHW_FT047', 'POLY_FT64', 'LBH_FT71', 'NMT_FT005', 'DWT_FTE07', 'NMT_FT008', 'MAF_FT050', 'TPO_FT034', 'SKD_FT047', 'MBR_FT72', 'NMT_FT010', 'RAI_FTE03', 'MAH_FT046', 'BKW_FT24', 'VSN_FTE21', 'GBT_FT023', 'SYP_FTE36', 'NLD_FT020', 'SDR_FT51', 'SKD_FT001', 'SDR_FT55', 'SAM_GSR1_FT14', 'AKT_FTE18', 'NMT_FT007', 'BOB_FT70', 'MJP_FT029', 'KPT_FT068', 'MVR_FT57', 'NMT_FT013', 'NMT_FT004', 'VAD_GSR2_FT006'}
+2026-08-06 02:44:16 [ERROR] objectname 'FMA_AI1_4954A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:44:16 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:44:16 [ERROR] All history endpoints exhausted for 'FMA_AI1_4954A'.
+2026-08-06 02:44:16 [INFO] RAW[/data] objectname=FM_Instant_Flow_6429A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:44:16 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:44:16 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:44:16 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM2_Instant_Flow_4910B -> list of 122 rows
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:44:16 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'CHV_FTE23', 'MBR_FT36', 'KAL_FTE34', 'MAH_FT066', 'SBP_FT28', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'LBB_FT75', 'SDR_FT56', 'NMT_FT015', 'FAJ_FTE02', 'SIN_FTE77', 'NMT_FT003', 'KPR_FTE26', 'PGT_FT019', 'MAF_FT070', 'JGD_BOOSTER_FT038', 'BND_FT65', 'GJW_FT021', 'MKP_FTE27', 'JAI_FT026', 'SYB_FT010', 'NDH_FT040', 'JAI_GSR3_FT027', 'NMT_FT012', 'SDR_FT53', 'HRI_GSR1_FT04', 'NMT_FT006', 'HRI_GSR2_FT03', 'KPT_FT067', 'VAD_GSR1_FT007', 'AJW_GSR1_FT031', 'ALW_FT064', 'RAI_FTE04', 'PAR_FT037', 'MJP_FTE22', 'GOA_FT002', 'ANG_FT061', 'WRD_FTE31', 'BPD_FT33', 'MNG_FT048', 'DOD_FTE06', 'BHP_FTE78', 'PGT_FT018', 'STJ_FT058', 'LBH_FT12', 'NMT_FT001', 'KRL_FT35', 'SYB_FT009', 'SDR_FT54', 'WAR_FT016', 'GYT_FTE17', 'SDN_FT041', 'SAM_GSR2_FT13', 'KPT_FT066', 'DOD_FTE05', 'STJ_FTE29', 'SHR_FTE10', 'GJW_FTE081', 'DTR_FTE28', 'LBB_FT74', 'FTP_FT039', 'CHJ_FT008', 'NVL_FT042', 'POI_FTE09', 'SYP_FT073', 'KLI_FT032', 'MNG_FT068', 'NHO_FTE24', 'SAJ_FT62', 'GOT_FTE20', 'STJ_FT059', 'TDJ_FT05', 'KAL_FTE33', 'PGT_FT017', 'GER_FT069', 'AIB_FT015', 'TAR_FTE19', 'SYM_FT076', 'SYB_FT011', 'NDM_FT049', 'STL_FT045', 'SDR_FT52', 'STJ_FTE30', 'AJW_GSR2_FT030', 'ANG_FT060', 'FAJ_FTE01', 'DSM_FT043', 'POI_FTE08', 'POLY_FT63', 'KHW_FT047', 'POLY_FT64', 'LBH_FT71', 'NMT_FT005', 'DWT_FTE07', 'NMT_FT008', 'MAF_FT050', 'TPO_FT034', 'SKD_FT047', 'MBR_FT72', 'NMT_FT010', 'RAI_FTE03', 'MAH_FT046', 'BKW_FT24', 'VSN_FTE21', 'GBT_FT023', 'SYP_FTE36', 'NLD_FT020', 'SDR_FT51', 'SKD_FT001', 'SDR_FT55', 'SAM_GSR1_FT14', 'AKT_FTE18', 'NMT_FT007', 'BOB_FT70', 'MJP_FT029', 'KPT_FT068', 'MVR_FT57', 'NMT_FT013', 'NMT_FT004', 'VAD_GSR2_FT006'}
+2026-08-06 02:44:16 [ERROR] objectname 'FM2_Instant_Flow_4910B' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:44:16 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:44:16 [ERROR] All history endpoints exhausted for 'FM2_Instant_Flow_4910B'.
+2026-08-06 02:44:16 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:44:16 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:44:16 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:44:16 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:44:17 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:44:17 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:44:17 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_6429A -> list of 122 rows
+2026-08-06 02:44:17 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:44:17 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'CHV_FTE23', 'MBR_FT36', 'KAL_FTE34', 'MAH_FT066', 'SBP_FT28', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'LBB_FT75', 'SDR_FT56', 'NMT_FT015', 'FAJ_FTE02', 'SIN_FTE77', 'NMT_FT003', 'KPR_FTE26', 'PGT_FT019', 'MAF_FT070', 'JGD_BOOSTER_FT038', 'BND_FT65', 'GJW_FT021', 'MKP_FTE27', 'JAI_FT026', 'SYB_FT010', 'NDH_FT040', 'JAI_GSR3_FT027', 'NMT_FT012', 'SDR_FT53', 'HRI_GSR1_FT04', 'NMT_FT006', 'HRI_GSR2_FT03', 'KPT_FT067', 'VAD_GSR1_FT007', 'AJW_GSR1_FT031', 'ALW_FT064', 'RAI_FTE04', 'PAR_FT037', 'MJP_FTE22', 'GOA_FT002', 'ANG_FT061', 'WRD_FTE31', 'BPD_FT33', 'MNG_FT048', 'DOD_FTE06', 'BHP_FTE78', 'PGT_FT018', 'STJ_FT058', 'LBH_FT12', 'NMT_FT001', 'KRL_FT35', 'SYB_FT009', 'SDR_FT54', 'WAR_FT016', 'GYT_FTE17', 'SDN_FT041', 'SAM_GSR2_FT13', 'KPT_FT066', 'DOD_FTE05', 'STJ_FTE29', 'SHR_FTE10', 'GJW_FTE081', 'DTR_FTE28', 'LBB_FT74', 'FTP_FT039', 'CHJ_FT008', 'NVL_FT042', 'POI_FTE09', 'SYP_FT073', 'KLI_FT032', 'MNG_FT068', 'NHO_FTE24', 'SAJ_FT62', 'GOT_FTE20', 'STJ_FT059', 'TDJ_FT05', 'KAL_FTE33', 'PGT_FT017', 'GER_FT069', 'AIB_FT015', 'TAR_FTE19', 'SYM_FT076', 'SYB_FT011', 'NDM_FT049', 'STL_FT045', 'SDR_FT52', 'STJ_FTE30', 'AJW_GSR2_FT030', 'ANG_FT060', 'FAJ_FTE01', 'DSM_FT043', 'POI_FTE08', 'POLY_FT63', 'KHW_FT047', 'POLY_FT64', 'LBH_FT71', 'NMT_FT005', 'DWT_FTE07', 'NMT_FT008', 'MAF_FT050', 'TPO_FT034', 'SKD_FT047', 'MBR_FT72', 'NMT_FT010', 'RAI_FTE03', 'MAH_FT046', 'BKW_FT24', 'VSN_FTE21', 'GBT_FT023', 'SYP_FTE36', 'NLD_FT020', 'SDR_FT51', 'SKD_FT001', 'SDR_FT55', 'SAM_GSR1_FT14', 'AKT_FTE18', 'NMT_FT007', 'BOB_FT70', 'MJP_FT029', 'KPT_FT068', 'MVR_FT57', 'NMT_FT013', 'NMT_FT004', 'VAD_GSR2_FT006'}
+2026-08-06 02:44:17 [ERROR] objectname 'FM_Instant_Flow_6429A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:44:17 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:44:17 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:44:17 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_6429A'.
+2026-08-06 02:44:17 [WARNING] Skipping 'RTU-4910-A' in multi-tag PDF — No data returned from API
+2026-08-06 02:44:17 [WARNING] Skipping 'RTU-4910-B' in multi-tag PDF — No data returned from API
+2026-08-06 02:44:17 [WARNING] Skipping 'RTU-4910-D' in multi-tag PDF — No data returned from API
+2026-08-06 02:44:17 [WARNING] Skipping 'DLP-4954-A' in multi-tag PDF — No data returned from API
+2026-08-06 02:44:17 [WARNING] Skipping 'DLP-4962-B' in multi-tag PDF — No data returned from API
+2026-08-06 02:44:17 [WARNING] Skipping 'RTU-6294-A' in multi-tag PDF — No data returned from API
+2026-08-06 02:44:17 [WARNING] Skipping 'RTU-6429-A' in multi-tag PDF — No data returned from API
+2026-08-06 02:44:17 [WARNING] Skipping 'RTU-4909-A' in multi-tag PDF — No data returned from API
+2026-08-06 02:44:17 [INFO] Multi-tag fetch complete: 0/8 tags OK
+2026-08-06 02:44:17 [INFO] Generating multi-tag PDF report...
+2026-08-06 02:44:17 [INFO] PDF saved locally: C:\Users\amarn\Downloads\final3\VMC_QoS_20260806.pdf
+2026-08-06 02:44:18 [INFO] PDF sent to 871141199
+2026-08-06 02:44:18 [INFO] Multi-tag PDF report sent
+2026-08-06 02:44:18 [INFO] QoS score saved: 2026-08-06 = 43.9%
+2026-08-06 02:44:18 [INFO] Benchmark snapshot saved (supply_window, 1 samples)
+2026-08-06 02:44:18 [INFO] === Daily batch job complete: 247 readings, 66 anomalies, QoS 43.9%, pattern_days=N/A ===
+2026-08-06 02:44:18 [INFO] Scheduler running. Next daily batch at 06:00 IST. Ctrl+C to stop.
+2026-08-06 02:44:18 [INFO] Added job "job_daily_batch_fetch_and_report" to job store "default"
+2026-08-06 02:44:18 [INFO] Scheduler started
+2026-08-06 02:46:37 [INFO] ════════════════════════════════════
+2026-08-06 02:46:37 [INFO]   VMC Worker (Batch Mode + Full Analysis) starting
+2026-08-06 02:46:37 [INFO]   DB         : C:\Users\amarn\Downloads\final3\vmc_readings.db
+2026-08-06 02:46:37 [INFO]   Batch fetch: every 24 hr (1 API call/day)
+2026-08-06 02:46:37 [INFO]   Report at  : 06:00 IST
+2026-08-06 02:46:37 [INFO]   Heartbeat  : OFF
+2026-08-06 02:46:37 [INFO]   Chats      : 1
+2026-08-06 02:46:37 [INFO]   Pattern yr : 2026  k=6  threshold=75%
+2026-08-06 02:46:37 [INFO] ════════════════════════════════════
+2026-08-06 02:46:37 [INFO] DB ready: vmc_readings.db
+2026-08-06 02:46:37 [INFO] Login OK via /login
+2026-08-06 02:46:37 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-08-06 02:46:37 [INFO] Running initial batch fetch on startup...
+2026-08-06 02:46:37 [INFO] === Daily batch job started ===
+2026-08-06 02:46:37 [INFO] Fetching 24hr batch for 'AIB_FT015': 2026-08-05 02:46 → 2026-08-06 02:46
+2026-08-06 02:46:37 [INFO] Trying endpoint: /data
+2026-08-06 02:46:38 [INFO] RAW[/data] objectname=AIB_FT015 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:46:38 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  02:49:08', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  02:49:08', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  02:52:08', 'va
+2026-08-06 02:46:38 [INFO] Endpoint /data — 482 records, 0 non-zero
+2026-08-06 02:46:38 [WARNING] Endpoint /data has 482 records but ALL ARE ZERO — trying next
+2026-08-06 02:46:38 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:46:39 [INFO] RAW[/ph1/data] objectname=AIB_FT015 -> list of 250 rows
+2026-08-06 02:46:39 [INFO] RAW[/ph1/data] sample row: {'tagName': 'AIB_FT015.Response.Value', 'timestamp': '2026-08-05 02:55:58.670', 'value': 900}
+2026-08-06 02:46:39 [INFO] RAW[/ph1/data] distinct tag-like identifiers in response: {'AIB_FT015.Response.Value'}
+2026-08-06 02:46:39 [INFO] Endpoint /ph1/data — 250 records, 247 non-zero
+2026-08-06 02:46:39 [INFO] Endpoint /ph1/data OK — using 247 non-zero records
+2026-08-06 02:46:39 [INFO] Batch inserted 247 rows into DB
+2026-08-06 02:46:39 [INFO] 24hr filter applied: 247 rows kept for today's analysis
+2026-08-06 02:46:39 [WARNING] No historical benchmark — using hardcoded fallback (24hr continuous supply)
+2026-08-06 02:46:39 [INFO] === QoS DIAGNOSTIC ===
+2026-08-06 02:46:39 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-08-06 02:46:39 [INFO] Windows found: 1
+2026-08-06 02:46:39 [INFO] Total rows: 247
+2026-08-06 02:46:39 [INFO] Flow max=960.0  min=30.0  mean=472.0
+2026-08-06 02:46:39 [INFO] Rows with flow > 1.0: 247
+2026-08-06 02:46:39 [INFO] Rows with flow > 0:   247
+2026-08-06 02:46:39 [INFO] Rows with flow == 0:  0
+2026-08-06 02:46:39 [INFO] Sample timestamps: [Timestamp('2026-08-05 02:55:58.670000'), Timestamp('2026-08-05 03:00:51'), Timestamp('2026-08-05 03:03:56.550000')]
+2026-08-06 02:46:39 [INFO] Sample flow values: [900.0, 912.0, 870.0, 900.0, 870.0, 900.0, 888.0, 870.0, 900.0, 870.0]
+2026-08-06 02:46:39 [INFO] Window 1: start=2026-08-05 02:55:58.670000 end=2026-08-06 02:40:39.690000 dur=1425min peak=960.0 avg=472.0
+2026-08-06 02:46:39 [INFO] === END DIAGNOSTIC ===
+2026-08-06 02:46:39 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-08-06 02:46:39 [INFO] Supply windows found: 1
+2026-08-06 02:46:39 [INFO] Flow stats: max=960.0 mean=472.0 zeros=0
+2026-08-06 02:46:40 [INFO] Telegram message sent to 871141199
+2026-08-06 02:46:51 [INFO] Telegram message sent to 871141199
+2026-08-06 02:46:51 [INFO] Daily text report sent
+2026-08-06 02:46:51 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — 24hr flow chart
+2026-08-06 02:46:51 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — Avg flow by hour
+2026-08-06 02:46:51 [INFO] Running 4-model anomaly detector...
+2026-08-06 02:46:51 [INFO] Full detector: 9 final anomalies (4-model ensemble)
+2026-08-06 02:46:52 [INFO] Telegram message sent to 871141199
+2026-08-06 02:46:52 [INFO] Generating EDA charts...
+2026-08-06 02:46:52 [INFO] send_photo disabled — skipping: 📈 EDA: Full flow time series
+2026-08-06 02:46:52 [INFO] send_photo disabled — skipping: 📈 EDA: Rolling mean ± 2σ band
+2026-08-06 02:46:52 [INFO] send_photo disabled — skipping: 📈 EDA: Flow distribution histogram
+2026-08-06 02:46:52 [INFO] EDA charts sent: 3
+2026-08-06 02:46:52 [INFO] Generating anomaly model charts...
+2026-08-06 02:46:53 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model comparison
+2026-08-06 02:46:53 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Final flags timeline
+2026-08-06 02:46:53 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model-by-model overlay
+2026-08-06 02:46:53 [INFO] Anomaly charts sent: 3
+2026-08-06 02:46:53 [INFO] Generating forecast chart...
+2026-08-06 02:46:53 [INFO] send_photo disabled — skipping: 📈 Forecast: Exp. smoothing +30 steps ahead
+2026-08-06 02:46:53 [INFO] Forecast chart sent
+2026-08-06 02:46:53 [INFO] Fetching Jan–Feb 2026 for pattern analysis...
+2026-08-06 02:47:04 [INFO] Pattern data: 19384 readings, 59 days
+2026-08-06 02:47:05 [ERROR] find_benchmark_pattern failed: Expected 2D array, got 1D array instead:
+array=[].
+Reshape your data either using array.reshape(-1, 1) if your data has a single feature or array.reshape(1, -1) if it contains a single sample.
+2026-08-06 02:47:05 [INFO] Fetching all 8 tags in parallel...
+2026-08-06 02:47:05 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_4910A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:47:05 [INFO] Trying endpoint: /data
+2026-08-06 02:47:05 [INFO] Fetching 24hr batch for 'FM2_Instant_Flow_4910B': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:47:05 [INFO] Fetching 24hr batch for 'FM4_Instant_Flow_4910D': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:47:05 [INFO] Trying endpoint: /data
+2026-08-06 02:47:05 [INFO] Fetching 24hr batch for 'FMA_AI1_4954A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:47:05 [INFO] Trying endpoint: /data
+2026-08-06 02:47:05 [INFO] Fetching 24hr batch for 'FMB_BI1_4962B': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:47:05 [INFO] Trying endpoint: /data
+2026-08-06 02:47:05 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_6294A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:47:05 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_6429A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:47:05 [INFO] Trying endpoint: /data
+2026-08-06 02:47:05 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_4909A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 02:47:05 [INFO] Trying endpoint: /data
+2026-08-06 02:47:05 [INFO] Trying endpoint: /data
+2026-08-06 02:47:05 [INFO] Trying endpoint: /data
+2026-08-06 02:47:06 [INFO] RAW[/data] objectname=FM_Instant_Flow_4910A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:47:06 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:47:06 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:47:06 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:47:06 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:47:06 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:47:06 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:47:06 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:47:07 [INFO] RAW[/data] objectname=FM2_Instant_Flow_4910B -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:47:07 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:47:07 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:47:07 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:47:07 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:47:07 [INFO] RAW[/data] objectname=FM4_Instant_Flow_4910D -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:47:07 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:47:07 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:47:07 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:47:07 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:47:07 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:47:07 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:47:07 [INFO] RAW[/data] objectname=FM_Instant_Flow_6429A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:47:07 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:47:07 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:47:07 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:47:07 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:47:07 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:47:07 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_4910A -> list of 122 rows
+2026-08-06 02:47:07 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:47:07 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'VSN_FTE21', 'BHP_FTE78', 'SAJ_FT62', 'PAR_FT037', 'WRD_FTE31', 'HRI_GSR1_FT04', 'SAM_GSR2_FT13', 'JAI_GSR3_FT027', 'MNG_FT068', 'GYT_FTE17', 'PGT_FT018', 'DTR_FTE28', 'NMT_FT006', 'SKD_FT047', 'GJW_FT021', 'KPR_FTE26', 'NMT_FT004', 'NHO_FTE24', 'DOD_FTE05', 'MBR_FT72', 'SIN_FTE77', 'STJ_FTE30', 'LBB_FT74', 'KHW_FT047', 'VAD_GSR2_FT006', 'MVR_FT57', 'NDH_FT040', 'JAI_FT026', 'POLY_FT63', 'VAD_GSR1_FT007', 'RAI_FTE03', 'DWT_FTE07', 'JGD_BOOSTER_FT038', 'LBH_FT12', 'KPT_FT067', 'CHV_FTE23', 'GER_FT069', 'BND_FT65', 'SDR_FT54', 'SDR_FT53', 'STJ_FT059', 'BKW_FT24', 'PGT_FT019', 'POI_FTE09', 'STJ_FTE29', 'NMT_FT013', 'KPT_FT068', 'KAL_FTE34', 'NMT_FT005', 'GOA_FT002', 'SYP_FT073', 'MBR_FT36', 'KRL_FT35', 'NMT_FT012', 'MAF_FT050', 'LBH_FT71', 'KPT_FT066', 'TDJ_FT05', 'SJP_FTE25', 'KLI_FT032', 'MAF_FT070', 'MJP_FT029', 'TAR_FT002', 'NVL_FT042', 'PGT_FT017', 'SDR_FT51', 'NLD_FT020', 'SDR_FT55', 'DSM_FT043', 'NMT_FT015', 'GOT_FTE20', 'MAH_FT066', 'NDM_FT049', 'SSN_FTE32', 'ANG_FT060', 'FAJ_FTE01', 'WAR_FT016', 'SAM_GSR1_FT14', 'SKD_FT001', 'TAR_FTE19', 'MKP_FTE27', 'MJP_FTE22', 'MNG_FT048', 'SHR_FTE10', 'NMT_FT008', 'TPO_FT034', 'SDR_FT52', 'SDN_FT041', 'ANG_FT061', 'BPD_FT33', 'CHJ_FT008', 'POLY_FT64', 'POI_FTE08', 'GJW_FTE081', 'NMT_FT007', 'DOD_FTE06', 'MAH_FT046', 'SYB_FT011', 'BOB_FT70', 'SYP_FTE36', 'NMT_FT003', 'FAJ_FTE02', 'LBB_FT75', 'SDR_FT56', 'STJ_FT058', 'FTP_FT039', 'RAI_FTE04', 'NMT_FT010', 'HRI_GSR2_FT03', 'KAL_FTE33', 'SYM_FT076', 'NMT_FT001', 'SYB_FT009', 'AKT_FTE18', 'GBT_FT023', 'AIB_FT015', 'SYB_FT010', 'STL_FT045', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'SBP_FT28', 'ALW_FT064'}
+2026-08-06 02:47:07 [ERROR] objectname 'FM_Instant_Flow_4910A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:47:07 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:47:07 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_4910A'.
+2026-08-06 02:47:07 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:47:07 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:47:07 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:47:07 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:47:07 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM2_Instant_Flow_4910B -> list of 122 rows
+2026-08-06 02:47:07 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:47:07 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:47:07 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'VSN_FTE21', 'BHP_FTE78', 'SAJ_FT62', 'PAR_FT037', 'WRD_FTE31', 'HRI_GSR1_FT04', 'SAM_GSR2_FT13', 'JAI_GSR3_FT027', 'MNG_FT068', 'GYT_FTE17', 'PGT_FT018', 'DTR_FTE28', 'NMT_FT006', 'SKD_FT047', 'GJW_FT021', 'KPR_FTE26', 'NMT_FT004', 'NHO_FTE24', 'DOD_FTE05', 'MBR_FT72', 'SIN_FTE77', 'STJ_FTE30', 'LBB_FT74', 'KHW_FT047', 'VAD_GSR2_FT006', 'MVR_FT57', 'NDH_FT040', 'JAI_FT026', 'POLY_FT63', 'VAD_GSR1_FT007', 'RAI_FTE03', 'DWT_FTE07', 'JGD_BOOSTER_FT038', 'LBH_FT12', 'KPT_FT067', 'CHV_FTE23', 'GER_FT069', 'BND_FT65', 'SDR_FT54', 'SDR_FT53', 'STJ_FT059', 'BKW_FT24', 'PGT_FT019', 'POI_FTE09', 'STJ_FTE29', 'NMT_FT013', 'KPT_FT068', 'KAL_FTE34', 'NMT_FT005', 'GOA_FT002', 'SYP_FT073', 'MBR_FT36', 'KRL_FT35', 'NMT_FT012', 'MAF_FT050', 'LBH_FT71', 'KPT_FT066', 'TDJ_FT05', 'SJP_FTE25', 'KLI_FT032', 'MAF_FT070', 'MJP_FT029', 'TAR_FT002', 'NVL_FT042', 'PGT_FT017', 'SDR_FT51', 'NLD_FT020', 'SDR_FT55', 'DSM_FT043', 'NMT_FT015', 'GOT_FTE20', 'MAH_FT066', 'NDM_FT049', 'SSN_FTE32', 'ANG_FT060', 'FAJ_FTE01', 'WAR_FT016', 'SAM_GSR1_FT14', 'SKD_FT001', 'TAR_FTE19', 'MKP_FTE27', 'MJP_FTE22', 'MNG_FT048', 'SHR_FTE10', 'NMT_FT008', 'TPO_FT034', 'SDR_FT52', 'SDN_FT041', 'ANG_FT061', 'BPD_FT33', 'CHJ_FT008', 'POLY_FT64', 'POI_FTE08', 'GJW_FTE081', 'NMT_FT007', 'DOD_FTE06', 'MAH_FT046', 'SYB_FT011', 'BOB_FT70', 'SYP_FTE36', 'NMT_FT003', 'FAJ_FTE02', 'LBB_FT75', 'SDR_FT56', 'STJ_FT058', 'FTP_FT039', 'RAI_FTE04', 'NMT_FT010', 'HRI_GSR2_FT03', 'KAL_FTE33', 'SYM_FT076', 'NMT_FT001', 'SYB_FT009', 'AKT_FTE18', 'GBT_FT023', 'AIB_FT015', 'SYB_FT010', 'STL_FT045', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'SBP_FT28', 'ALW_FT064'}
+2026-08-06 02:47:07 [ERROR] objectname 'FM2_Instant_Flow_4910B' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:47:07 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:47:07 [ERROR] All history endpoints exhausted for 'FM2_Instant_Flow_4910B'.
+2026-08-06 02:47:07 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:47:07 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM4_Instant_Flow_4910D -> list of 122 rows
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:47:07 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:47:07 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'VSN_FTE21', 'BHP_FTE78', 'SAJ_FT62', 'PAR_FT037', 'WRD_FTE31', 'HRI_GSR1_FT04', 'SAM_GSR2_FT13', 'JAI_GSR3_FT027', 'MNG_FT068', 'GYT_FTE17', 'PGT_FT018', 'DTR_FTE28', 'NMT_FT006', 'SKD_FT047', 'GJW_FT021', 'KPR_FTE26', 'NMT_FT004', 'NHO_FTE24', 'DOD_FTE05', 'MBR_FT72', 'SIN_FTE77', 'STJ_FTE30', 'LBB_FT74', 'KHW_FT047', 'VAD_GSR2_FT006', 'MVR_FT57', 'NDH_FT040', 'JAI_FT026', 'POLY_FT63', 'VAD_GSR1_FT007', 'RAI_FTE03', 'DWT_FTE07', 'JGD_BOOSTER_FT038', 'LBH_FT12', 'KPT_FT067', 'CHV_FTE23', 'GER_FT069', 'BND_FT65', 'SDR_FT54', 'SDR_FT53', 'STJ_FT059', 'BKW_FT24', 'PGT_FT019', 'POI_FTE09', 'STJ_FTE29', 'NMT_FT013', 'KPT_FT068', 'KAL_FTE34', 'NMT_FT005', 'GOA_FT002', 'SYP_FT073', 'MBR_FT36', 'KRL_FT35', 'NMT_FT012', 'MAF_FT050', 'LBH_FT71', 'KPT_FT066', 'TDJ_FT05', 'SJP_FTE25', 'KLI_FT032', 'MAF_FT070', 'MJP_FT029', 'TAR_FT002', 'NVL_FT042', 'PGT_FT017', 'SDR_FT51', 'NLD_FT020', 'SDR_FT55', 'DSM_FT043', 'NMT_FT015', 'GOT_FTE20', 'MAH_FT066', 'NDM_FT049', 'SSN_FTE32', 'ANG_FT060', 'FAJ_FTE01', 'WAR_FT016', 'SAM_GSR1_FT14', 'SKD_FT001', 'TAR_FTE19', 'MKP_FTE27', 'MJP_FTE22', 'MNG_FT048', 'SHR_FTE10', 'NMT_FT008', 'TPO_FT034', 'SDR_FT52', 'SDN_FT041', 'ANG_FT061', 'BPD_FT33', 'CHJ_FT008', 'POLY_FT64', 'POI_FTE08', 'GJW_FTE081', 'NMT_FT007', 'DOD_FTE06', 'MAH_FT046', 'SYB_FT011', 'BOB_FT70', 'SYP_FTE36', 'NMT_FT003', 'FAJ_FTE02', 'LBB_FT75', 'SDR_FT56', 'STJ_FT058', 'FTP_FT039', 'RAI_FTE04', 'NMT_FT010', 'HRI_GSR2_FT03', 'KAL_FTE33', 'SYM_FT076', 'NMT_FT001', 'SYB_FT009', 'AKT_FTE18', 'GBT_FT023', 'AIB_FT015', 'SYB_FT010', 'STL_FT045', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'SBP_FT28', 'ALW_FT064'}
+2026-08-06 02:47:07 [ERROR] objectname 'FM4_Instant_Flow_4910D' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:47:07 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:47:07 [ERROR] All history endpoints exhausted for 'FM4_Instant_Flow_4910D'.
+2026-08-06 02:47:07 [INFO] RAW[/data] objectname=FM_Instant_Flow_6294A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:47:07 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:47:07 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:47:07 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:47:07 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:47:07 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_6429A -> list of 122 rows
+2026-08-06 02:47:07 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:47:07 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'VSN_FTE21', 'BHP_FTE78', 'SAJ_FT62', 'PAR_FT037', 'WRD_FTE31', 'HRI_GSR1_FT04', 'SAM_GSR2_FT13', 'JAI_GSR3_FT027', 'MNG_FT068', 'GYT_FTE17', 'PGT_FT018', 'DTR_FTE28', 'NMT_FT006', 'SKD_FT047', 'GJW_FT021', 'KPR_FTE26', 'NMT_FT004', 'NHO_FTE24', 'DOD_FTE05', 'MBR_FT72', 'SIN_FTE77', 'STJ_FTE30', 'LBB_FT74', 'KHW_FT047', 'VAD_GSR2_FT006', 'MVR_FT57', 'NDH_FT040', 'JAI_FT026', 'POLY_FT63', 'VAD_GSR1_FT007', 'RAI_FTE03', 'DWT_FTE07', 'JGD_BOOSTER_FT038', 'LBH_FT12', 'KPT_FT067', 'CHV_FTE23', 'GER_FT069', 'BND_FT65', 'SDR_FT54', 'SDR_FT53', 'STJ_FT059', 'BKW_FT24', 'PGT_FT019', 'POI_FTE09', 'STJ_FTE29', 'NMT_FT013', 'KPT_FT068', 'KAL_FTE34', 'NMT_FT005', 'GOA_FT002', 'SYP_FT073', 'MBR_FT36', 'KRL_FT35', 'NMT_FT012', 'MAF_FT050', 'LBH_FT71', 'KPT_FT066', 'TDJ_FT05', 'SJP_FTE25', 'KLI_FT032', 'MAF_FT070', 'MJP_FT029', 'TAR_FT002', 'NVL_FT042', 'PGT_FT017', 'SDR_FT51', 'NLD_FT020', 'SDR_FT55', 'DSM_FT043', 'NMT_FT015', 'GOT_FTE20', 'MAH_FT066', 'NDM_FT049', 'SSN_FTE32', 'ANG_FT060', 'FAJ_FTE01', 'WAR_FT016', 'SAM_GSR1_FT14', 'SKD_FT001', 'TAR_FTE19', 'MKP_FTE27', 'MJP_FTE22', 'MNG_FT048', 'SHR_FTE10', 'NMT_FT008', 'TPO_FT034', 'SDR_FT52', 'SDN_FT041', 'ANG_FT061', 'BPD_FT33', 'CHJ_FT008', 'POLY_FT64', 'POI_FTE08', 'GJW_FTE081', 'NMT_FT007', 'DOD_FTE06', 'MAH_FT046', 'SYB_FT011', 'BOB_FT70', 'SYP_FTE36', 'NMT_FT003', 'FAJ_FTE02', 'LBB_FT75', 'SDR_FT56', 'STJ_FT058', 'FTP_FT039', 'RAI_FTE04', 'NMT_FT010', 'HRI_GSR2_FT03', 'KAL_FTE33', 'SYM_FT076', 'NMT_FT001', 'SYB_FT009', 'AKT_FTE18', 'GBT_FT023', 'AIB_FT015', 'SYB_FT010', 'STL_FT045', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'SBP_FT28', 'ALW_FT064'}
+2026-08-06 02:47:07 [INFO] RAW[/data] objectname=FM_Instant_Flow_4909A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:47:07 [ERROR] objectname 'FM_Instant_Flow_6429A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:47:07 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:47:07 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:47:07 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:47:07 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:47:07 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_6429A'.
+2026-08-06 02:47:07 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:47:07 [INFO] RAW[/data] objectname=FMB_BI1_4962B -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:47:07 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:47:07 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:47:07 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:47:07 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:47:07 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:47:07 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:47:07 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:47:07 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:47:07 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:47:07 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:47:07 [INFO] RAW[/data] objectname=FMA_AI1_4954A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 02:47:07 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 02:47:07 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 02:47:07 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 02:47:07 [INFO] Trying endpoint: /ph1/data
+2026-08-06 02:47:07 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:47:07 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:47:07 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:47:08 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_6294A -> list of 122 rows
+2026-08-06 02:47:08 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:47:08 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'VSN_FTE21', 'BHP_FTE78', 'SAJ_FT62', 'PAR_FT037', 'WRD_FTE31', 'HRI_GSR1_FT04', 'SAM_GSR2_FT13', 'JAI_GSR3_FT027', 'MNG_FT068', 'GYT_FTE17', 'PGT_FT018', 'DTR_FTE28', 'NMT_FT006', 'SKD_FT047', 'GJW_FT021', 'KPR_FTE26', 'NMT_FT004', 'NHO_FTE24', 'DOD_FTE05', 'MBR_FT72', 'SIN_FTE77', 'STJ_FTE30', 'LBB_FT74', 'KHW_FT047', 'VAD_GSR2_FT006', 'MVR_FT57', 'NDH_FT040', 'JAI_FT026', 'POLY_FT63', 'VAD_GSR1_FT007', 'RAI_FTE03', 'DWT_FTE07', 'JGD_BOOSTER_FT038', 'LBH_FT12', 'KPT_FT067', 'CHV_FTE23', 'GER_FT069', 'BND_FT65', 'SDR_FT54', 'SDR_FT53', 'STJ_FT059', 'BKW_FT24', 'PGT_FT019', 'POI_FTE09', 'STJ_FTE29', 'NMT_FT013', 'KPT_FT068', 'KAL_FTE34', 'NMT_FT005', 'GOA_FT002', 'SYP_FT073', 'MBR_FT36', 'KRL_FT35', 'NMT_FT012', 'MAF_FT050', 'LBH_FT71', 'KPT_FT066', 'TDJ_FT05', 'SJP_FTE25', 'KLI_FT032', 'MAF_FT070', 'MJP_FT029', 'TAR_FT002', 'NVL_FT042', 'PGT_FT017', 'SDR_FT51', 'NLD_FT020', 'SDR_FT55', 'DSM_FT043', 'NMT_FT015', 'GOT_FTE20', 'MAH_FT066', 'NDM_FT049', 'SSN_FTE32', 'ANG_FT060', 'FAJ_FTE01', 'WAR_FT016', 'SAM_GSR1_FT14', 'SKD_FT001', 'TAR_FTE19', 'MKP_FTE27', 'MJP_FTE22', 'MNG_FT048', 'SHR_FTE10', 'NMT_FT008', 'TPO_FT034', 'SDR_FT52', 'SDN_FT041', 'ANG_FT061', 'BPD_FT33', 'CHJ_FT008', 'POLY_FT64', 'POI_FTE08', 'GJW_FTE081', 'NMT_FT007', 'DOD_FTE06', 'MAH_FT046', 'SYB_FT011', 'BOB_FT70', 'SYP_FTE36', 'NMT_FT003', 'FAJ_FTE02', 'LBB_FT75', 'SDR_FT56', 'STJ_FT058', 'FTP_FT039', 'RAI_FTE04', 'NMT_FT010', 'HRI_GSR2_FT03', 'KAL_FTE33', 'SYM_FT076', 'NMT_FT001', 'SYB_FT009', 'AKT_FTE18', 'GBT_FT023', 'AIB_FT015', 'SYB_FT010', 'STL_FT045', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'SBP_FT28', 'ALW_FT064'}
+2026-08-06 02:47:08 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 02:47:08 [ERROR] objectname 'FM_Instant_Flow_6294A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:47:08 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 02:47:08 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:47:08 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 02:47:08 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:47:08 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_6294A'.
+2026-08-06 02:47:08 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:47:08 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:47:08 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 02:47:08 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 02:47:08 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_4909A -> list of 122 rows
+2026-08-06 02:47:08 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:47:08 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'VSN_FTE21', 'BHP_FTE78', 'SAJ_FT62', 'PAR_FT037', 'WRD_FTE31', 'HRI_GSR1_FT04', 'SAM_GSR2_FT13', 'JAI_GSR3_FT027', 'MNG_FT068', 'GYT_FTE17', 'PGT_FT018', 'DTR_FTE28', 'NMT_FT006', 'SKD_FT047', 'GJW_FT021', 'KPR_FTE26', 'NMT_FT004', 'NHO_FTE24', 'DOD_FTE05', 'MBR_FT72', 'SIN_FTE77', 'STJ_FTE30', 'LBB_FT74', 'KHW_FT047', 'VAD_GSR2_FT006', 'MVR_FT57', 'NDH_FT040', 'JAI_FT026', 'POLY_FT63', 'VAD_GSR1_FT007', 'RAI_FTE03', 'DWT_FTE07', 'JGD_BOOSTER_FT038', 'LBH_FT12', 'KPT_FT067', 'CHV_FTE23', 'GER_FT069', 'BND_FT65', 'SDR_FT54', 'SDR_FT53', 'STJ_FT059', 'BKW_FT24', 'PGT_FT019', 'POI_FTE09', 'STJ_FTE29', 'NMT_FT013', 'KPT_FT068', 'KAL_FTE34', 'NMT_FT005', 'GOA_FT002', 'SYP_FT073', 'MBR_FT36', 'KRL_FT35', 'NMT_FT012', 'MAF_FT050', 'LBH_FT71', 'KPT_FT066', 'TDJ_FT05', 'SJP_FTE25', 'KLI_FT032', 'MAF_FT070', 'MJP_FT029', 'TAR_FT002', 'NVL_FT042', 'PGT_FT017', 'SDR_FT51', 'NLD_FT020', 'SDR_FT55', 'DSM_FT043', 'NMT_FT015', 'GOT_FTE20', 'MAH_FT066', 'NDM_FT049', 'SSN_FTE32', 'ANG_FT060', 'FAJ_FTE01', 'WAR_FT016', 'SAM_GSR1_FT14', 'SKD_FT001', 'TAR_FTE19', 'MKP_FTE27', 'MJP_FTE22', 'MNG_FT048', 'SHR_FTE10', 'NMT_FT008', 'TPO_FT034', 'SDR_FT52', 'SDN_FT041', 'ANG_FT061', 'BPD_FT33', 'CHJ_FT008', 'POLY_FT64', 'POI_FTE08', 'GJW_FTE081', 'NMT_FT007', 'DOD_FTE06', 'MAH_FT046', 'SYB_FT011', 'BOB_FT70', 'SYP_FTE36', 'NMT_FT003', 'FAJ_FTE02', 'LBB_FT75', 'SDR_FT56', 'STJ_FT058', 'FTP_FT039', 'RAI_FTE04', 'NMT_FT010', 'HRI_GSR2_FT03', 'KAL_FTE33', 'SYM_FT076', 'NMT_FT001', 'SYB_FT009', 'AKT_FTE18', 'GBT_FT023', 'AIB_FT015', 'SYB_FT010', 'STL_FT045', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'SBP_FT28', 'ALW_FT064'}
+2026-08-06 02:47:08 [ERROR] objectname 'FM_Instant_Flow_4909A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:47:08 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:47:08 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:47:08 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_4909A'.
+2026-08-06 02:47:08 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FMB_BI1_4962B -> list of 122 rows
+2026-08-06 02:47:08 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:47:08 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'VSN_FTE21', 'BHP_FTE78', 'SAJ_FT62', 'PAR_FT037', 'WRD_FTE31', 'HRI_GSR1_FT04', 'SAM_GSR2_FT13', 'JAI_GSR3_FT027', 'MNG_FT068', 'GYT_FTE17', 'PGT_FT018', 'DTR_FTE28', 'NMT_FT006', 'SKD_FT047', 'GJW_FT021', 'KPR_FTE26', 'NMT_FT004', 'NHO_FTE24', 'DOD_FTE05', 'MBR_FT72', 'SIN_FTE77', 'STJ_FTE30', 'LBB_FT74', 'KHW_FT047', 'VAD_GSR2_FT006', 'MVR_FT57', 'NDH_FT040', 'JAI_FT026', 'POLY_FT63', 'VAD_GSR1_FT007', 'RAI_FTE03', 'DWT_FTE07', 'JGD_BOOSTER_FT038', 'LBH_FT12', 'KPT_FT067', 'CHV_FTE23', 'GER_FT069', 'BND_FT65', 'SDR_FT54', 'SDR_FT53', 'STJ_FT059', 'BKW_FT24', 'PGT_FT019', 'POI_FTE09', 'STJ_FTE29', 'NMT_FT013', 'KPT_FT068', 'KAL_FTE34', 'NMT_FT005', 'GOA_FT002', 'SYP_FT073', 'MBR_FT36', 'KRL_FT35', 'NMT_FT012', 'MAF_FT050', 'LBH_FT71', 'KPT_FT066', 'TDJ_FT05', 'SJP_FTE25', 'KLI_FT032', 'MAF_FT070', 'MJP_FT029', 'TAR_FT002', 'NVL_FT042', 'PGT_FT017', 'SDR_FT51', 'NLD_FT020', 'SDR_FT55', 'DSM_FT043', 'NMT_FT015', 'GOT_FTE20', 'MAH_FT066', 'NDM_FT049', 'SSN_FTE32', 'ANG_FT060', 'FAJ_FTE01', 'WAR_FT016', 'SAM_GSR1_FT14', 'SKD_FT001', 'TAR_FTE19', 'MKP_FTE27', 'MJP_FTE22', 'MNG_FT048', 'SHR_FTE10', 'NMT_FT008', 'TPO_FT034', 'SDR_FT52', 'SDN_FT041', 'ANG_FT061', 'BPD_FT33', 'CHJ_FT008', 'POLY_FT64', 'POI_FTE08', 'GJW_FTE081', 'NMT_FT007', 'DOD_FTE06', 'MAH_FT046', 'SYB_FT011', 'BOB_FT70', 'SYP_FTE36', 'NMT_FT003', 'FAJ_FTE02', 'LBB_FT75', 'SDR_FT56', 'STJ_FT058', 'FTP_FT039', 'RAI_FTE04', 'NMT_FT010', 'HRI_GSR2_FT03', 'KAL_FTE33', 'SYM_FT076', 'NMT_FT001', 'SYB_FT009', 'AKT_FTE18', 'GBT_FT023', 'AIB_FT015', 'SYB_FT010', 'STL_FT045', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'SBP_FT28', 'ALW_FT064'}
+2026-08-06 02:47:08 [ERROR] objectname 'FMB_BI1_4962B' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:47:08 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:47:08 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:47:08 [ERROR] All history endpoints exhausted for 'FMB_BI1_4962B'.
+2026-08-06 02:47:08 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 02:47:08 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 02:47:08 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FMA_AI1_4954A -> list of 122 rows
+2026-08-06 02:47:08 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '720.000000', 'timestamp': 1785964239690, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:13:28.000Z'}
+2026-08-06 02:47:08 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'VSN_FTE21', 'BHP_FTE78', 'SAJ_FT62', 'PAR_FT037', 'WRD_FTE31', 'HRI_GSR1_FT04', 'SAM_GSR2_FT13', 'JAI_GSR3_FT027', 'MNG_FT068', 'GYT_FTE17', 'PGT_FT018', 'DTR_FTE28', 'NMT_FT006', 'SKD_FT047', 'GJW_FT021', 'KPR_FTE26', 'NMT_FT004', 'NHO_FTE24', 'DOD_FTE05', 'MBR_FT72', 'SIN_FTE77', 'STJ_FTE30', 'LBB_FT74', 'KHW_FT047', 'VAD_GSR2_FT006', 'MVR_FT57', 'NDH_FT040', 'JAI_FT026', 'POLY_FT63', 'VAD_GSR1_FT007', 'RAI_FTE03', 'DWT_FTE07', 'JGD_BOOSTER_FT038', 'LBH_FT12', 'KPT_FT067', 'CHV_FTE23', 'GER_FT069', 'BND_FT65', 'SDR_FT54', 'SDR_FT53', 'STJ_FT059', 'BKW_FT24', 'PGT_FT019', 'POI_FTE09', 'STJ_FTE29', 'NMT_FT013', 'KPT_FT068', 'KAL_FTE34', 'NMT_FT005', 'GOA_FT002', 'SYP_FT073', 'MBR_FT36', 'KRL_FT35', 'NMT_FT012', 'MAF_FT050', 'LBH_FT71', 'KPT_FT066', 'TDJ_FT05', 'SJP_FTE25', 'KLI_FT032', 'MAF_FT070', 'MJP_FT029', 'TAR_FT002', 'NVL_FT042', 'PGT_FT017', 'SDR_FT51', 'NLD_FT020', 'SDR_FT55', 'DSM_FT043', 'NMT_FT015', 'GOT_FTE20', 'MAH_FT066', 'NDM_FT049', 'SSN_FTE32', 'ANG_FT060', 'FAJ_FTE01', 'WAR_FT016', 'SAM_GSR1_FT14', 'SKD_FT001', 'TAR_FTE19', 'MKP_FTE27', 'MJP_FTE22', 'MNG_FT048', 'SHR_FTE10', 'NMT_FT008', 'TPO_FT034', 'SDR_FT52', 'SDN_FT041', 'ANG_FT061', 'BPD_FT33', 'CHJ_FT008', 'POLY_FT64', 'POI_FTE08', 'GJW_FTE081', 'NMT_FT007', 'DOD_FTE06', 'MAH_FT046', 'SYB_FT011', 'BOB_FT70', 'SYP_FTE36', 'NMT_FT003', 'FAJ_FTE02', 'LBB_FT75', 'SDR_FT56', 'STJ_FT058', 'FTP_FT039', 'RAI_FTE04', 'NMT_FT010', 'HRI_GSR2_FT03', 'KAL_FTE33', 'SYM_FT076', 'NMT_FT001', 'SYB_FT009', 'AKT_FTE18', 'GBT_FT023', 'AIB_FT015', 'SYB_FT010', 'STL_FT045', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'SBP_FT28', 'ALW_FT064'}
+2026-08-06 02:47:08 [ERROR] objectname 'FMA_AI1_4954A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 02:47:08 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 02:47:08 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 02:47:08 [ERROR] All history endpoints exhausted for 'FMA_AI1_4954A'.
+2026-08-06 02:47:08 [WARNING] Skipping 'RTU-4910-A' in multi-tag PDF — No data returned from API
+2026-08-06 02:47:08 [WARNING] Skipping 'RTU-4910-B' in multi-tag PDF — No data returned from API
+2026-08-06 02:47:08 [WARNING] Skipping 'RTU-4910-D' in multi-tag PDF — No data returned from API
+2026-08-06 02:47:08 [WARNING] Skipping 'DLP-4954-A' in multi-tag PDF — No data returned from API
+2026-08-06 02:47:08 [WARNING] Skipping 'DLP-4962-B' in multi-tag PDF — No data returned from API
+2026-08-06 02:47:08 [WARNING] Skipping 'RTU-6294-A' in multi-tag PDF — No data returned from API
+2026-08-06 02:47:08 [WARNING] Skipping 'RTU-6429-A' in multi-tag PDF — No data returned from API
+2026-08-06 02:47:08 [WARNING] Skipping 'RTU-4909-A' in multi-tag PDF — No data returned from API
+2026-08-06 02:47:08 [INFO] Multi-tag fetch complete: 0/8 tags OK
+2026-08-06 02:47:08 [INFO] Generating multi-tag PDF report...
+2026-08-06 02:47:08 [INFO] PDF saved locally: C:\Users\amarn\Downloads\final3\VMC_QoS_20260806.pdf
+2026-08-06 02:47:30 [INFO] PDF sent to 871141199
+2026-08-06 02:47:30 [INFO] Multi-tag PDF report sent
+2026-08-06 02:47:30 [INFO] QoS score saved: 2026-08-06 = 43.9%
+2026-08-06 02:47:30 [INFO] Benchmark snapshot saved (supply_window, 1 samples)
+2026-08-06 02:47:30 [INFO] === Daily batch job complete: 247 readings, 66 anomalies, QoS 43.9%, pattern_days=N/A ===
+2026-08-06 02:47:30 [INFO] Scheduler running. Next daily batch at 06:00 IST. Ctrl+C to stop.
+2026-08-06 02:47:30 [INFO] Added job "job_daily_batch_fetch_and_report" to job store "default"
+2026-08-06 02:47:30 [INFO] Scheduler started
+2026-08-06 03:07:19 [INFO] ════════════════════════════════════
+2026-08-06 03:07:19 [INFO]   VMC Worker (Batch Mode + Full Analysis) starting
+2026-08-06 03:07:19 [INFO]   DB         : C:\Users\amarn\Downloads\final3\vmc_readings.db
+2026-08-06 03:07:19 [INFO]   Batch fetch: every 24 hr (1 API call/day)
+2026-08-06 03:07:19 [INFO]   Report at  : 06:00 IST
+2026-08-06 03:07:19 [INFO]   Heartbeat  : OFF
+2026-08-06 03:07:19 [INFO]   Chats      : 1
+2026-08-06 03:07:19 [INFO]   Pattern yr : 2026  k=6  threshold=75%
+2026-08-06 03:07:19 [INFO] ════════════════════════════════════
+2026-08-06 03:07:19 [INFO] DB ready: vmc_readings.db
+2026-08-06 03:07:20 [INFO] Login OK via /login
+2026-08-06 03:07:20 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-08-06 03:07:20 [INFO] Running initial batch fetch on startup...
+2026-08-06 03:07:20 [INFO] === Daily batch job started ===
+2026-08-06 03:07:20 [INFO] Fetching 24hr batch for 'AIB_FT015': 2026-08-05 03:07 → 2026-08-06 03:07
+2026-08-06 03:07:20 [INFO] Trying endpoint: /data
+2026-08-06 03:07:21 [INFO] RAW[/data] objectname=AIB_FT015 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:07:21 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  03:10:08', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  03:10:08', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  03:13:08', 'va
+2026-08-06 03:07:21 [INFO] Endpoint /data — 482 records, 0 non-zero
+2026-08-06 03:07:21 [WARNING] Endpoint /data has 482 records but ALL ARE ZERO — trying next
+2026-08-06 03:07:21 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:07:22 [INFO] RAW[/ph1/data] objectname=AIB_FT015 -> list of 250 rows
+2026-08-06 03:07:22 [INFO] RAW[/ph1/data] sample row: {'tagName': 'AIB_FT015.Response.Value', 'timestamp': '2026-08-05 03:08:11.630', 'value': 900}
+2026-08-06 03:07:22 [INFO] RAW[/ph1/data] distinct tag-like identifiers in response: {'AIB_FT015.Response.Value'}
+2026-08-06 03:07:22 [INFO] Endpoint /ph1/data — 250 records, 247 non-zero
+2026-08-06 03:07:22 [INFO] Endpoint /ph1/data OK — using 247 non-zero records
+2026-08-06 03:07:22 [INFO] Batch inserted 247 rows into DB
+2026-08-06 03:07:22 [INFO] 24hr filter applied: 247 rows kept for today's analysis
+2026-08-06 03:07:22 [WARNING] No historical benchmark — using hardcoded fallback (24hr continuous supply)
+2026-08-06 03:07:22 [INFO] === QoS DIAGNOSTIC ===
+2026-08-06 03:07:22 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-08-06 03:07:22 [INFO] Windows found: 1
+2026-08-06 03:07:22 [INFO] Total rows: 247
+2026-08-06 03:07:22 [INFO] Flow max=960.0  min=30.0  mean=470.0
+2026-08-06 03:07:22 [INFO] Rows with flow > 1.0: 247
+2026-08-06 03:07:22 [INFO] Rows with flow > 0:   247
+2026-08-06 03:07:22 [INFO] Rows with flow == 0:  0
+2026-08-06 03:07:22 [INFO] Sample timestamps: [Timestamp('2026-08-05 03:08:11.630000'), Timestamp('2026-08-05 03:09:25.530000'), Timestamp('2026-08-05 03:27:17.050000')]
+2026-08-06 03:07:22 [INFO] Sample flow values: [900.0, 870.0, 900.0, 888.0, 870.0, 900.0, 870.0, 894.0, 900.0, 870.0]
+2026-08-06 03:07:22 [INFO] Window 1: start=2026-08-05 03:08:11.630000 end=2026-08-06 03:01:10 dur=1433min peak=960.0 avg=470.0
+2026-08-06 03:07:22 [INFO] === END DIAGNOSTIC ===
+2026-08-06 03:07:22 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-08-06 03:07:22 [INFO] Supply windows found: 1
+2026-08-06 03:07:22 [INFO] Flow stats: max=960.0 mean=470.0 zeros=0
+2026-08-06 03:07:23 [INFO] Telegram message sent to 871141199
+2026-08-06 03:07:24 [INFO] Telegram message sent to 871141199
+2026-08-06 03:07:24 [INFO] Daily text report sent
+2026-08-06 03:07:24 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — 24hr flow chart
+2026-08-06 03:07:24 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — Avg flow by hour
+2026-08-06 03:07:24 [INFO] Running 4-model anomaly detector...
+2026-08-06 03:07:24 [INFO] Full detector: 9 final anomalies (4-model ensemble)
+2026-08-06 03:07:25 [INFO] Telegram message sent to 871141199
+2026-08-06 03:07:25 [INFO] Generating EDA charts...
+2026-08-06 03:07:25 [INFO] send_photo disabled — skipping: 📈 EDA: Full flow time series
+2026-08-06 03:07:25 [INFO] send_photo disabled — skipping: 📈 EDA: Rolling mean ± 2σ band
+2026-08-06 03:07:25 [INFO] send_photo disabled — skipping: 📈 EDA: Flow distribution histogram
+2026-08-06 03:07:25 [INFO] EDA charts sent: 3
+2026-08-06 03:07:25 [INFO] Generating anomaly model charts...
+2026-08-06 03:07:25 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model comparison
+2026-08-06 03:07:25 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Final flags timeline
+2026-08-06 03:07:25 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model-by-model overlay
+2026-08-06 03:07:25 [INFO] Anomaly charts sent: 3
+2026-08-06 03:07:25 [INFO] Generating forecast chart...
+2026-08-06 03:07:26 [INFO] send_photo disabled — skipping: 📈 Forecast: Exp. smoothing +30 steps ahead
+2026-08-06 03:07:26 [INFO] Forecast chart sent
+2026-08-06 03:07:26 [INFO] Fetching Jan–Feb 2026 for pattern analysis...
+2026-08-06 03:07:37 [INFO] Pattern data: 19384 readings, 59 days
+2026-08-06 03:07:38 [ERROR] find_benchmark_pattern failed: Expected 2D array, got 1D array instead:
+array=[].
+Reshape your data either using array.reshape(-1, 1) if your data has a single feature or array.reshape(1, -1) if it contains a single sample.
+2026-08-06 03:07:38 [INFO] Fetching all 8 tags in parallel...
+2026-08-06 03:07:38 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_4910A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:07:38 [INFO] Trying endpoint: /data
+2026-08-06 03:07:38 [INFO] Fetching 24hr batch for 'FM2_Instant_Flow_4910B': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:07:38 [INFO] Trying endpoint: /data
+2026-08-06 03:07:38 [INFO] Fetching 24hr batch for 'FM4_Instant_Flow_4910D': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:07:38 [INFO] Trying endpoint: /data
+2026-08-06 03:07:38 [INFO] Fetching 24hr batch for 'FMA_AI1_4954A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:07:38 [INFO] Trying endpoint: /data
+2026-08-06 03:07:38 [INFO] Fetching 24hr batch for 'FMB_BI1_4962B': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:07:38 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_6294A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:07:38 [INFO] Trying endpoint: /data
+2026-08-06 03:07:38 [INFO] Trying endpoint: /data
+2026-08-06 03:07:38 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_6429A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:07:38 [INFO] Trying endpoint: /data
+2026-08-06 03:07:38 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_4909A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:07:38 [INFO] Trying endpoint: /data
+2026-08-06 03:07:39 [INFO] RAW[/data] objectname=FM_Instant_Flow_4910A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:07:39 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 03:07:39 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 03:07:39 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 03:07:39 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:07:39 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:07:39 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:07:39 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:07:40 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:07:40 [INFO] RAW[/data] objectname=FMB_BI1_4962B -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:07:40 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 03:07:40 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 03:07:40 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:07:40 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:07:40 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:07:40 [INFO] RAW[/data] objectname=FM4_Instant_Flow_4910D -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:07:40 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 03:07:40 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 03:07:40 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:07:40 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_4910A -> list of 122 rows
+2026-08-06 03:07:40 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '726.000000', 'timestamp': 1785965470000, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:31:12.000Z'}
+2026-08-06 03:07:40 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'POI_FTE09', 'NHO_FTE24', 'KPR_FTE26', 'STJ_FT059', 'SKD_FT001', 'LBB_FT75', 'SYB_FT011', 'RAI_FTE03', 'KAL_FTE33', 'MBR_FT72', 'KPT_FT068', 'NMT_FT015', 'KPT_FT066', 'NMT_FT005', 'WAR_FT016', 'NDH_FT040', 'DSM_FT043', 'GOT_FTE20', 'ANG_FT060', 'SDR_FT51', 'FAJ_FTE01', 'KAL_FTE34', 'MVR_FT57', 'CHJ_FT008', 'MKP_FTE27', 'SYP_FTE36', 'LBB_FT74', 'PGT_FT017', 'STJ_FT058', 'POLY_FT63', 'BND_FT65', 'MAF_FT050', 'HRI_GSR2_FT03', 'SDR_FT54', 'MNG_FT068', 'LBH_FT71', 'AIB_FT015', 'PAR_FT037', 'NLD_FT020', 'BOB_FT70', 'NDM_FT049', 'STL_FT045', 'VAD_GSR2_FT006', 'GJW_FT021', 'SDR_FT56', 'SAM_GSR2_FT13', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'VSN_FTE21', 'NVL_FT042', 'LBH_FT12', 'KHW_FT047', 'MAH_FT066', 'POI_FTE08', 'TDJ_FT05', 'SDR_FT53', 'SYB_FT010', 'MNG_FT048', 'TAR_FTE19', 'SYM_FT076', 'SYP_FT073', 'NMT_FT010', 'SYB_FT009', 'ANG_FT061', 'MAH_FT046', 'FAJ_FTE02', 'DOD_FTE05', 'JAI_FT026', 'VAD_GSR1_FT007', 'CHV_FTE23', 'SBP_FT28', 'ALW_FT064', 'AKT_FTE18', 'MJP_FT029', 'GJW_FTE081', 'BKW_FT24', 'GOA_FT002', 'SAM_GSR1_FT14', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'WRD_FTE31', 'SDN_FT041', 'GER_FT069', 'NMT_FT006', 'KLI_FT032', 'STJ_FTE29', 'SDR_FT52', 'NMT_FT007', 'DTR_FTE28', 'NMT_FT001', 'FTP_FT039', 'MJP_FTE22', 'GYT_FTE17', 'SHR_FTE10', 'PGT_FT018', 'BPD_FT33', 'SDR_FT55', 'DWT_FTE07', 'MBR_FT36', 'KRL_FT35', 'DOD_FTE06', 'NMT_FT004', 'SIN_FTE77', 'BHP_FTE78', 'JAI_GSR3_FT027', 'NMT_FT012', 'SAJ_FT62', 'TPO_FT034', 'NMT_FT003', 'GBT_FT023', 'SKD_FT047', 'POLY_FT64', 'MAF_FT070', 'KPT_FT067', 'NMT_FT013', 'STJ_FTE30', 'NMT_FT008', 'HRI_GSR1_FT04', 'PGT_FT019', 'RAI_FTE04', 'JGD_BOOSTER_FT038'}
+2026-08-06 03:07:40 [ERROR] objectname 'FM_Instant_Flow_4910A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:07:40 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:07:40 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_4910A'.
+2026-08-06 03:07:40 [INFO] RAW[/data] objectname=FMA_AI1_4954A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:07:40 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 03:07:40 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 03:07:40 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:07:40 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:07:40 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:07:40 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:07:40 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:07:40 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:07:40 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:07:40 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:07:40 [INFO] RAW[/data] objectname=FM_Instant_Flow_6429A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:07:40 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 03:07:40 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 03:07:40 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:07:40 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:07:40 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:07:40 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FMB_BI1_4962B -> list of 122 rows
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:07:40 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '726.000000', 'timestamp': 1785965470000, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:31:12.000Z'}
+2026-08-06 03:07:40 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'POI_FTE09', 'NHO_FTE24', 'KPR_FTE26', 'STJ_FT059', 'SKD_FT001', 'LBB_FT75', 'SYB_FT011', 'RAI_FTE03', 'KAL_FTE33', 'MBR_FT72', 'KPT_FT068', 'NMT_FT015', 'KPT_FT066', 'NMT_FT005', 'WAR_FT016', 'NDH_FT040', 'DSM_FT043', 'GOT_FTE20', 'ANG_FT060', 'SDR_FT51', 'FAJ_FTE01', 'KAL_FTE34', 'MVR_FT57', 'CHJ_FT008', 'MKP_FTE27', 'SYP_FTE36', 'LBB_FT74', 'PGT_FT017', 'STJ_FT058', 'POLY_FT63', 'BND_FT65', 'MAF_FT050', 'HRI_GSR2_FT03', 'SDR_FT54', 'MNG_FT068', 'LBH_FT71', 'AIB_FT015', 'PAR_FT037', 'NLD_FT020', 'BOB_FT70', 'NDM_FT049', 'STL_FT045', 'VAD_GSR2_FT006', 'GJW_FT021', 'SDR_FT56', 'SAM_GSR2_FT13', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'VSN_FTE21', 'NVL_FT042', 'LBH_FT12', 'KHW_FT047', 'MAH_FT066', 'POI_FTE08', 'TDJ_FT05', 'SDR_FT53', 'SYB_FT010', 'MNG_FT048', 'TAR_FTE19', 'SYM_FT076', 'SYP_FT073', 'NMT_FT010', 'SYB_FT009', 'ANG_FT061', 'MAH_FT046', 'FAJ_FTE02', 'DOD_FTE05', 'JAI_FT026', 'VAD_GSR1_FT007', 'CHV_FTE23', 'SBP_FT28', 'ALW_FT064', 'AKT_FTE18', 'MJP_FT029', 'GJW_FTE081', 'BKW_FT24', 'GOA_FT002', 'SAM_GSR1_FT14', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'WRD_FTE31', 'SDN_FT041', 'GER_FT069', 'NMT_FT006', 'KLI_FT032', 'STJ_FTE29', 'SDR_FT52', 'NMT_FT007', 'DTR_FTE28', 'NMT_FT001', 'FTP_FT039', 'MJP_FTE22', 'GYT_FTE17', 'SHR_FTE10', 'PGT_FT018', 'BPD_FT33', 'SDR_FT55', 'DWT_FTE07', 'MBR_FT36', 'KRL_FT35', 'DOD_FTE06', 'NMT_FT004', 'SIN_FTE77', 'BHP_FTE78', 'JAI_GSR3_FT027', 'NMT_FT012', 'SAJ_FT62', 'TPO_FT034', 'NMT_FT003', 'GBT_FT023', 'SKD_FT047', 'POLY_FT64', 'MAF_FT070', 'KPT_FT067', 'NMT_FT013', 'STJ_FTE30', 'NMT_FT008', 'HRI_GSR1_FT04', 'PGT_FT019', 'RAI_FTE04', 'JGD_BOOSTER_FT038'}
+2026-08-06 03:07:40 [ERROR] objectname 'FMB_BI1_4962B' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:07:40 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:07:40 [ERROR] All history endpoints exhausted for 'FMB_BI1_4962B'.
+2026-08-06 03:07:40 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:07:40 [INFO] RAW[/data] objectname=FM2_Instant_Flow_4910B -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:07:40 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 03:07:40 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 03:07:40 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:07:40 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM4_Instant_Flow_4910D -> list of 122 rows
+2026-08-06 03:07:40 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '726.000000', 'timestamp': 1785965470000, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:31:12.000Z'}
+2026-08-06 03:07:40 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'POI_FTE09', 'NHO_FTE24', 'KPR_FTE26', 'STJ_FT059', 'SKD_FT001', 'LBB_FT75', 'SYB_FT011', 'RAI_FTE03', 'KAL_FTE33', 'MBR_FT72', 'KPT_FT068', 'NMT_FT015', 'KPT_FT066', 'NMT_FT005', 'WAR_FT016', 'NDH_FT040', 'DSM_FT043', 'GOT_FTE20', 'ANG_FT060', 'SDR_FT51', 'FAJ_FTE01', 'KAL_FTE34', 'MVR_FT57', 'CHJ_FT008', 'MKP_FTE27', 'SYP_FTE36', 'LBB_FT74', 'PGT_FT017', 'STJ_FT058', 'POLY_FT63', 'BND_FT65', 'MAF_FT050', 'HRI_GSR2_FT03', 'SDR_FT54', 'MNG_FT068', 'LBH_FT71', 'AIB_FT015', 'PAR_FT037', 'NLD_FT020', 'BOB_FT70', 'NDM_FT049', 'STL_FT045', 'VAD_GSR2_FT006', 'GJW_FT021', 'SDR_FT56', 'SAM_GSR2_FT13', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'VSN_FTE21', 'NVL_FT042', 'LBH_FT12', 'KHW_FT047', 'MAH_FT066', 'POI_FTE08', 'TDJ_FT05', 'SDR_FT53', 'SYB_FT010', 'MNG_FT048', 'TAR_FTE19', 'SYM_FT076', 'SYP_FT073', 'NMT_FT010', 'SYB_FT009', 'ANG_FT061', 'MAH_FT046', 'FAJ_FTE02', 'DOD_FTE05', 'JAI_FT026', 'VAD_GSR1_FT007', 'CHV_FTE23', 'SBP_FT28', 'ALW_FT064', 'AKT_FTE18', 'MJP_FT029', 'GJW_FTE081', 'BKW_FT24', 'GOA_FT002', 'SAM_GSR1_FT14', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'WRD_FTE31', 'SDN_FT041', 'GER_FT069', 'NMT_FT006', 'KLI_FT032', 'STJ_FTE29', 'SDR_FT52', 'NMT_FT007', 'DTR_FTE28', 'NMT_FT001', 'FTP_FT039', 'MJP_FTE22', 'GYT_FTE17', 'SHR_FTE10', 'PGT_FT018', 'BPD_FT33', 'SDR_FT55', 'DWT_FTE07', 'MBR_FT36', 'KRL_FT35', 'DOD_FTE06', 'NMT_FT004', 'SIN_FTE77', 'BHP_FTE78', 'JAI_GSR3_FT027', 'NMT_FT012', 'SAJ_FT62', 'TPO_FT034', 'NMT_FT003', 'GBT_FT023', 'SKD_FT047', 'POLY_FT64', 'MAF_FT070', 'KPT_FT067', 'NMT_FT013', 'STJ_FTE30', 'NMT_FT008', 'HRI_GSR1_FT04', 'PGT_FT019', 'RAI_FTE04', 'JGD_BOOSTER_FT038'}
+2026-08-06 03:07:40 [ERROR] objectname 'FM4_Instant_Flow_4910D' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:07:40 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:07:40 [ERROR] All history endpoints exhausted for 'FM4_Instant_Flow_4910D'.
+2026-08-06 03:07:40 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FMA_AI1_4954A -> list of 122 rows
+2026-08-06 03:07:40 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '726.000000', 'timestamp': 1785965470000, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:31:12.000Z'}
+2026-08-06 03:07:40 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'POI_FTE09', 'NHO_FTE24', 'KPR_FTE26', 'STJ_FT059', 'SKD_FT001', 'LBB_FT75', 'SYB_FT011', 'RAI_FTE03', 'KAL_FTE33', 'MBR_FT72', 'KPT_FT068', 'NMT_FT015', 'KPT_FT066', 'NMT_FT005', 'WAR_FT016', 'NDH_FT040', 'DSM_FT043', 'GOT_FTE20', 'ANG_FT060', 'SDR_FT51', 'FAJ_FTE01', 'KAL_FTE34', 'MVR_FT57', 'CHJ_FT008', 'MKP_FTE27', 'SYP_FTE36', 'LBB_FT74', 'PGT_FT017', 'STJ_FT058', 'POLY_FT63', 'BND_FT65', 'MAF_FT050', 'HRI_GSR2_FT03', 'SDR_FT54', 'MNG_FT068', 'LBH_FT71', 'AIB_FT015', 'PAR_FT037', 'NLD_FT020', 'BOB_FT70', 'NDM_FT049', 'STL_FT045', 'VAD_GSR2_FT006', 'GJW_FT021', 'SDR_FT56', 'SAM_GSR2_FT13', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'VSN_FTE21', 'NVL_FT042', 'LBH_FT12', 'KHW_FT047', 'MAH_FT066', 'POI_FTE08', 'TDJ_FT05', 'SDR_FT53', 'SYB_FT010', 'MNG_FT048', 'TAR_FTE19', 'SYM_FT076', 'SYP_FT073', 'NMT_FT010', 'SYB_FT009', 'ANG_FT061', 'MAH_FT046', 'FAJ_FTE02', 'DOD_FTE05', 'JAI_FT026', 'VAD_GSR1_FT007', 'CHV_FTE23', 'SBP_FT28', 'ALW_FT064', 'AKT_FTE18', 'MJP_FT029', 'GJW_FTE081', 'BKW_FT24', 'GOA_FT002', 'SAM_GSR1_FT14', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'WRD_FTE31', 'SDN_FT041', 'GER_FT069', 'NMT_FT006', 'KLI_FT032', 'STJ_FTE29', 'SDR_FT52', 'NMT_FT007', 'DTR_FTE28', 'NMT_FT001', 'FTP_FT039', 'MJP_FTE22', 'GYT_FTE17', 'SHR_FTE10', 'PGT_FT018', 'BPD_FT33', 'SDR_FT55', 'DWT_FTE07', 'MBR_FT36', 'KRL_FT35', 'DOD_FTE06', 'NMT_FT004', 'SIN_FTE77', 'BHP_FTE78', 'JAI_GSR3_FT027', 'NMT_FT012', 'SAJ_FT62', 'TPO_FT034', 'NMT_FT003', 'GBT_FT023', 'SKD_FT047', 'POLY_FT64', 'MAF_FT070', 'KPT_FT067', 'NMT_FT013', 'STJ_FTE30', 'NMT_FT008', 'HRI_GSR1_FT04', 'PGT_FT019', 'RAI_FTE04', 'JGD_BOOSTER_FT038'}
+2026-08-06 03:07:40 [ERROR] objectname 'FMA_AI1_4954A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:07:40 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:07:40 [ERROR] All history endpoints exhausted for 'FMA_AI1_4954A'.
+2026-08-06 03:07:40 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:07:40 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:07:40 [INFO] RAW[/data] objectname=FM_Instant_Flow_6294A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:07:40 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 03:07:40 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 03:07:40 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:07:40 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:07:40 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:07:40 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:07:40 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:07:40 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:07:41 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:07:41 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:07:41 [INFO] RAW[/data] objectname=FM_Instant_Flow_4909A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:07:41 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 03:07:41 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 03:07:41 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 03:07:41 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:07:41 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:07:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_6429A -> list of 122 rows
+2026-08-06 03:07:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '726.000000', 'timestamp': 1785965470000, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:31:12.000Z'}
+2026-08-06 03:07:41 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:07:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'POI_FTE09', 'NHO_FTE24', 'KPR_FTE26', 'STJ_FT059', 'SKD_FT001', 'LBB_FT75', 'SYB_FT011', 'RAI_FTE03', 'KAL_FTE33', 'MBR_FT72', 'KPT_FT068', 'NMT_FT015', 'KPT_FT066', 'NMT_FT005', 'WAR_FT016', 'NDH_FT040', 'DSM_FT043', 'GOT_FTE20', 'ANG_FT060', 'SDR_FT51', 'FAJ_FTE01', 'KAL_FTE34', 'MVR_FT57', 'CHJ_FT008', 'MKP_FTE27', 'SYP_FTE36', 'LBB_FT74', 'PGT_FT017', 'STJ_FT058', 'POLY_FT63', 'BND_FT65', 'MAF_FT050', 'HRI_GSR2_FT03', 'SDR_FT54', 'MNG_FT068', 'LBH_FT71', 'AIB_FT015', 'PAR_FT037', 'NLD_FT020', 'BOB_FT70', 'NDM_FT049', 'STL_FT045', 'VAD_GSR2_FT006', 'GJW_FT021', 'SDR_FT56', 'SAM_GSR2_FT13', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'VSN_FTE21', 'NVL_FT042', 'LBH_FT12', 'KHW_FT047', 'MAH_FT066', 'POI_FTE08', 'TDJ_FT05', 'SDR_FT53', 'SYB_FT010', 'MNG_FT048', 'TAR_FTE19', 'SYM_FT076', 'SYP_FT073', 'NMT_FT010', 'SYB_FT009', 'ANG_FT061', 'MAH_FT046', 'FAJ_FTE02', 'DOD_FTE05', 'JAI_FT026', 'VAD_GSR1_FT007', 'CHV_FTE23', 'SBP_FT28', 'ALW_FT064', 'AKT_FTE18', 'MJP_FT029', 'GJW_FTE081', 'BKW_FT24', 'GOA_FT002', 'SAM_GSR1_FT14', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'WRD_FTE31', 'SDN_FT041', 'GER_FT069', 'NMT_FT006', 'KLI_FT032', 'STJ_FTE29', 'SDR_FT52', 'NMT_FT007', 'DTR_FTE28', 'NMT_FT001', 'FTP_FT039', 'MJP_FTE22', 'GYT_FTE17', 'SHR_FTE10', 'PGT_FT018', 'BPD_FT33', 'SDR_FT55', 'DWT_FTE07', 'MBR_FT36', 'KRL_FT35', 'DOD_FTE06', 'NMT_FT004', 'SIN_FTE77', 'BHP_FTE78', 'JAI_GSR3_FT027', 'NMT_FT012', 'SAJ_FT62', 'TPO_FT034', 'NMT_FT003', 'GBT_FT023', 'SKD_FT047', 'POLY_FT64', 'MAF_FT070', 'KPT_FT067', 'NMT_FT013', 'STJ_FTE30', 'NMT_FT008', 'HRI_GSR1_FT04', 'PGT_FT019', 'RAI_FTE04', 'JGD_BOOSTER_FT038'}
+2026-08-06 03:07:41 [ERROR] objectname 'FM_Instant_Flow_6429A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:07:41 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:07:41 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:07:41 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_6429A'.
+2026-08-06 03:07:41 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:07:41 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:07:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM2_Instant_Flow_4910B -> list of 122 rows
+2026-08-06 03:07:41 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:07:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '726.000000', 'timestamp': 1785965470000, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:31:12.000Z'}
+2026-08-06 03:07:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'POI_FTE09', 'NHO_FTE24', 'KPR_FTE26', 'STJ_FT059', 'SKD_FT001', 'LBB_FT75', 'SYB_FT011', 'RAI_FTE03', 'KAL_FTE33', 'MBR_FT72', 'KPT_FT068', 'NMT_FT015', 'KPT_FT066', 'NMT_FT005', 'WAR_FT016', 'NDH_FT040', 'DSM_FT043', 'GOT_FTE20', 'ANG_FT060', 'SDR_FT51', 'FAJ_FTE01', 'KAL_FTE34', 'MVR_FT57', 'CHJ_FT008', 'MKP_FTE27', 'SYP_FTE36', 'LBB_FT74', 'PGT_FT017', 'STJ_FT058', 'POLY_FT63', 'BND_FT65', 'MAF_FT050', 'HRI_GSR2_FT03', 'SDR_FT54', 'MNG_FT068', 'LBH_FT71', 'AIB_FT015', 'PAR_FT037', 'NLD_FT020', 'BOB_FT70', 'NDM_FT049', 'STL_FT045', 'VAD_GSR2_FT006', 'GJW_FT021', 'SDR_FT56', 'SAM_GSR2_FT13', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'VSN_FTE21', 'NVL_FT042', 'LBH_FT12', 'KHW_FT047', 'MAH_FT066', 'POI_FTE08', 'TDJ_FT05', 'SDR_FT53', 'SYB_FT010', 'MNG_FT048', 'TAR_FTE19', 'SYM_FT076', 'SYP_FT073', 'NMT_FT010', 'SYB_FT009', 'ANG_FT061', 'MAH_FT046', 'FAJ_FTE02', 'DOD_FTE05', 'JAI_FT026', 'VAD_GSR1_FT007', 'CHV_FTE23', 'SBP_FT28', 'ALW_FT064', 'AKT_FTE18', 'MJP_FT029', 'GJW_FTE081', 'BKW_FT24', 'GOA_FT002', 'SAM_GSR1_FT14', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'WRD_FTE31', 'SDN_FT041', 'GER_FT069', 'NMT_FT006', 'KLI_FT032', 'STJ_FTE29', 'SDR_FT52', 'NMT_FT007', 'DTR_FTE28', 'NMT_FT001', 'FTP_FT039', 'MJP_FTE22', 'GYT_FTE17', 'SHR_FTE10', 'PGT_FT018', 'BPD_FT33', 'SDR_FT55', 'DWT_FTE07', 'MBR_FT36', 'KRL_FT35', 'DOD_FTE06', 'NMT_FT004', 'SIN_FTE77', 'BHP_FTE78', 'JAI_GSR3_FT027', 'NMT_FT012', 'SAJ_FT62', 'TPO_FT034', 'NMT_FT003', 'GBT_FT023', 'SKD_FT047', 'POLY_FT64', 'MAF_FT070', 'KPT_FT067', 'NMT_FT013', 'STJ_FTE30', 'NMT_FT008', 'HRI_GSR1_FT04', 'PGT_FT019', 'RAI_FTE04', 'JGD_BOOSTER_FT038'}
+2026-08-06 03:07:41 [ERROR] objectname 'FM2_Instant_Flow_4910B' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:07:41 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:07:41 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:07:41 [ERROR] All history endpoints exhausted for 'FM2_Instant_Flow_4910B'.
+2026-08-06 03:07:41 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:07:41 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:07:41 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:07:41 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:07:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_6294A -> list of 122 rows
+2026-08-06 03:07:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '726.000000', 'timestamp': 1785965470000, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:31:12.000Z'}
+2026-08-06 03:07:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'POI_FTE09', 'NHO_FTE24', 'KPR_FTE26', 'STJ_FT059', 'SKD_FT001', 'LBB_FT75', 'SYB_FT011', 'RAI_FTE03', 'KAL_FTE33', 'MBR_FT72', 'KPT_FT068', 'NMT_FT015', 'KPT_FT066', 'NMT_FT005', 'WAR_FT016', 'NDH_FT040', 'DSM_FT043', 'GOT_FTE20', 'ANG_FT060', 'SDR_FT51', 'FAJ_FTE01', 'KAL_FTE34', 'MVR_FT57', 'CHJ_FT008', 'MKP_FTE27', 'SYP_FTE36', 'LBB_FT74', 'PGT_FT017', 'STJ_FT058', 'POLY_FT63', 'BND_FT65', 'MAF_FT050', 'HRI_GSR2_FT03', 'SDR_FT54', 'MNG_FT068', 'LBH_FT71', 'AIB_FT015', 'PAR_FT037', 'NLD_FT020', 'BOB_FT70', 'NDM_FT049', 'STL_FT045', 'VAD_GSR2_FT006', 'GJW_FT021', 'SDR_FT56', 'SAM_GSR2_FT13', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'VSN_FTE21', 'NVL_FT042', 'LBH_FT12', 'KHW_FT047', 'MAH_FT066', 'POI_FTE08', 'TDJ_FT05', 'SDR_FT53', 'SYB_FT010', 'MNG_FT048', 'TAR_FTE19', 'SYM_FT076', 'SYP_FT073', 'NMT_FT010', 'SYB_FT009', 'ANG_FT061', 'MAH_FT046', 'FAJ_FTE02', 'DOD_FTE05', 'JAI_FT026', 'VAD_GSR1_FT007', 'CHV_FTE23', 'SBP_FT28', 'ALW_FT064', 'AKT_FTE18', 'MJP_FT029', 'GJW_FTE081', 'BKW_FT24', 'GOA_FT002', 'SAM_GSR1_FT14', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'WRD_FTE31', 'SDN_FT041', 'GER_FT069', 'NMT_FT006', 'KLI_FT032', 'STJ_FTE29', 'SDR_FT52', 'NMT_FT007', 'DTR_FTE28', 'NMT_FT001', 'FTP_FT039', 'MJP_FTE22', 'GYT_FTE17', 'SHR_FTE10', 'PGT_FT018', 'BPD_FT33', 'SDR_FT55', 'DWT_FTE07', 'MBR_FT36', 'KRL_FT35', 'DOD_FTE06', 'NMT_FT004', 'SIN_FTE77', 'BHP_FTE78', 'JAI_GSR3_FT027', 'NMT_FT012', 'SAJ_FT62', 'TPO_FT034', 'NMT_FT003', 'GBT_FT023', 'SKD_FT047', 'POLY_FT64', 'MAF_FT070', 'KPT_FT067', 'NMT_FT013', 'STJ_FTE30', 'NMT_FT008', 'HRI_GSR1_FT04', 'PGT_FT019', 'RAI_FTE04', 'JGD_BOOSTER_FT038'}
+2026-08-06 03:07:41 [ERROR] objectname 'FM_Instant_Flow_6294A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:07:41 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:07:41 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:07:41 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_6294A'.
+2026-08-06 03:07:41 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:07:41 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:07:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_4909A -> list of 122 rows
+2026-08-06 03:07:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '726.000000', 'timestamp': 1785965470000, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:31:12.000Z'}
+2026-08-06 03:07:41 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'POI_FTE09', 'NHO_FTE24', 'KPR_FTE26', 'STJ_FT059', 'SKD_FT001', 'LBB_FT75', 'SYB_FT011', 'RAI_FTE03', 'KAL_FTE33', 'MBR_FT72', 'KPT_FT068', 'NMT_FT015', 'KPT_FT066', 'NMT_FT005', 'WAR_FT016', 'NDH_FT040', 'DSM_FT043', 'GOT_FTE20', 'ANG_FT060', 'SDR_FT51', 'FAJ_FTE01', 'KAL_FTE34', 'MVR_FT57', 'CHJ_FT008', 'MKP_FTE27', 'SYP_FTE36', 'LBB_FT74', 'PGT_FT017', 'STJ_FT058', 'POLY_FT63', 'BND_FT65', 'MAF_FT050', 'HRI_GSR2_FT03', 'SDR_FT54', 'MNG_FT068', 'LBH_FT71', 'AIB_FT015', 'PAR_FT037', 'NLD_FT020', 'BOB_FT70', 'NDM_FT049', 'STL_FT045', 'VAD_GSR2_FT006', 'GJW_FT021', 'SDR_FT56', 'SAM_GSR2_FT13', 'AJW_GSR2_FT030', 'AJW_GSR1_FT031', 'VSN_FTE21', 'NVL_FT042', 'LBH_FT12', 'KHW_FT047', 'MAH_FT066', 'POI_FTE08', 'TDJ_FT05', 'SDR_FT53', 'SYB_FT010', 'MNG_FT048', 'TAR_FTE19', 'SYM_FT076', 'SYP_FT073', 'NMT_FT010', 'SYB_FT009', 'ANG_FT061', 'MAH_FT046', 'FAJ_FTE02', 'DOD_FTE05', 'JAI_FT026', 'VAD_GSR1_FT007', 'CHV_FTE23', 'SBP_FT28', 'ALW_FT064', 'AKT_FTE18', 'MJP_FT029', 'GJW_FTE081', 'BKW_FT24', 'GOA_FT002', 'SAM_GSR1_FT14', 'SJP_FTE25', 'SSN_FTE32', 'TAR_FT002', 'WRD_FTE31', 'SDN_FT041', 'GER_FT069', 'NMT_FT006', 'KLI_FT032', 'STJ_FTE29', 'SDR_FT52', 'NMT_FT007', 'DTR_FTE28', 'NMT_FT001', 'FTP_FT039', 'MJP_FTE22', 'GYT_FTE17', 'SHR_FTE10', 'PGT_FT018', 'BPD_FT33', 'SDR_FT55', 'DWT_FTE07', 'MBR_FT36', 'KRL_FT35', 'DOD_FTE06', 'NMT_FT004', 'SIN_FTE77', 'BHP_FTE78', 'JAI_GSR3_FT027', 'NMT_FT012', 'SAJ_FT62', 'TPO_FT034', 'NMT_FT003', 'GBT_FT023', 'SKD_FT047', 'POLY_FT64', 'MAF_FT070', 'KPT_FT067', 'NMT_FT013', 'STJ_FTE30', 'NMT_FT008', 'HRI_GSR1_FT04', 'PGT_FT019', 'RAI_FTE04', 'JGD_BOOSTER_FT038'}
+2026-08-06 03:07:41 [ERROR] objectname 'FM_Instant_Flow_4909A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:07:41 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:07:41 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:07:41 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_4909A'.
+2026-08-06 03:07:41 [WARNING] Skipping 'RTU-4910-A' in multi-tag PDF — No data returned from API
+2026-08-06 03:07:41 [WARNING] Skipping 'RTU-4910-B' in multi-tag PDF — No data returned from API
+2026-08-06 03:07:41 [WARNING] Skipping 'RTU-4910-D' in multi-tag PDF — No data returned from API
+2026-08-06 03:07:41 [WARNING] Skipping 'DLP-4954-A' in multi-tag PDF — No data returned from API
+2026-08-06 03:07:41 [WARNING] Skipping 'DLP-4962-B' in multi-tag PDF — No data returned from API
+2026-08-06 03:07:41 [WARNING] Skipping 'RTU-6294-A' in multi-tag PDF — No data returned from API
+2026-08-06 03:07:41 [WARNING] Skipping 'RTU-6429-A' in multi-tag PDF — No data returned from API
+2026-08-06 03:07:41 [WARNING] Skipping 'RTU-4909-A' in multi-tag PDF — No data returned from API
+2026-08-06 03:07:41 [INFO] Multi-tag fetch complete: 0/8 tags OK
+2026-08-06 03:07:41 [INFO] Generating multi-tag PDF report...
+2026-08-06 03:07:41 [INFO] PDF saved locally: C:\Users\amarn\Downloads\final3\VMC_QoS_20260806.pdf
+2026-08-06 03:07:42 [INFO] PDF sent to 871141199
+2026-08-06 03:07:42 [INFO] Multi-tag PDF report sent
+2026-08-06 03:07:42 [INFO] QoS score saved: 2026-08-06 = 44.1%
+2026-08-06 03:07:42 [INFO] Benchmark snapshot saved (supply_window, 1 samples)
+2026-08-06 03:07:42 [INFO] === Daily batch job complete: 247 readings, 66 anomalies, QoS 44.1%, pattern_days=N/A ===
+2026-08-06 03:07:42 [INFO] Scheduler running. Next daily batch at 06:00 IST. Ctrl+C to stop.
+2026-08-06 03:07:42 [INFO] Added job "job_daily_batch_fetch_and_report" to job store "default"
+2026-08-06 03:07:42 [INFO] Scheduler started
+2026-08-06 03:11:49 [INFO] ════════════════════════════════════
+2026-08-06 03:11:49 [INFO]   VMC Worker (Batch Mode + Full Analysis) starting
+2026-08-06 03:11:49 [INFO]   DB         : C:\Users\amarn\Downloads\final3\vmc_readings.db
+2026-08-06 03:11:49 [INFO]   Batch fetch: every 24 hr (1 API call/day)
+2026-08-06 03:11:49 [INFO]   Report at  : 06:00 IST
+2026-08-06 03:11:49 [INFO]   Heartbeat  : OFF
+2026-08-06 03:11:49 [INFO]   Chats      : 1
+2026-08-06 03:11:49 [INFO]   Pattern yr : 2026  k=6  threshold=75%
+2026-08-06 03:11:49 [INFO] ════════════════════════════════════
+2026-08-06 03:11:49 [INFO] DB ready: vmc_readings.db
+2026-08-06 03:11:49 [INFO] Login OK via /login
+2026-08-06 03:11:49 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-08-06 03:11:49 [INFO] Running initial batch fetch on startup...
+2026-08-06 03:11:49 [INFO] === Daily batch job started ===
+2026-08-06 03:11:49 [INFO] Fetching 24hr batch for 'AIB_FT015': 2026-08-05 03:11 → 2026-08-06 03:11
+2026-08-06 03:11:49 [INFO] Trying endpoint: /data
+2026-08-06 03:11:50 [INFO] RAW[/data] objectname=AIB_FT015 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:11:50 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  03:13:08', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  03:13:08', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  03:16:08', 'va
+2026-08-06 03:11:50 [INFO] Endpoint /data — 482 records, 0 non-zero
+2026-08-06 03:11:50 [WARNING] Endpoint /data has 482 records but ALL ARE ZERO — trying next
+2026-08-06 03:11:50 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:11:52 [INFO] RAW[/ph1/data] objectname=AIB_FT015 -> list of 251 rows
+2026-08-06 03:11:52 [INFO] RAW[/ph1/data] sample row: {'tagName': 'AIB_FT015.Response.Value', 'timestamp': '2026-08-05 03:27:17.050', 'value': 900}
+2026-08-06 03:11:52 [INFO] RAW[/ph1/data] distinct tag-like identifiers in response: {'AIB_FT015.Response.Value'}
+2026-08-06 03:11:52 [INFO] Endpoint /ph1/data — 251 records, 248 non-zero
+2026-08-06 03:11:52 [INFO] Endpoint /ph1/data OK — using 248 non-zero records
+2026-08-06 03:11:52 [INFO] Batch inserted 248 rows into DB
+2026-08-06 03:11:52 [INFO] 24hr filter applied: 248 rows kept for today's analysis
+2026-08-06 03:11:52 [WARNING] No historical benchmark — using hardcoded fallback (24hr continuous supply)
+2026-08-06 03:11:52 [INFO] === QoS DIAGNOSTIC ===
+2026-08-06 03:11:52 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-08-06 03:11:52 [INFO] Windows found: 1
+2026-08-06 03:11:52 [INFO] Total rows: 248
+2026-08-06 03:11:52 [INFO] Flow max=960.0  min=30.0  mean=469.2
+2026-08-06 03:11:52 [INFO] Rows with flow > 1.0: 248
+2026-08-06 03:11:52 [INFO] Rows with flow > 0:   248
+2026-08-06 03:11:52 [INFO] Rows with flow == 0:  0
+2026-08-06 03:11:52 [INFO] Sample timestamps: [Timestamp('2026-08-05 03:27:17.050000'), Timestamp('2026-08-05 03:30:51'), Timestamp('2026-08-05 03:32:14.630000')]
+2026-08-06 03:11:52 [INFO] Sample flow values: [900.0, 888.0, 870.0, 900.0, 870.0, 894.0, 900.0, 870.0, 840.0, 810.0]
+2026-08-06 03:11:52 [INFO] Window 1: start=2026-08-05 03:27:17.050000 end=2026-08-06 03:08:40.570000 dur=1421min peak=960.0 avg=469.2
+2026-08-06 03:11:52 [INFO] === END DIAGNOSTIC ===
+2026-08-06 03:11:52 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-08-06 03:11:52 [INFO] Supply windows found: 1
+2026-08-06 03:11:52 [INFO] Flow stats: max=960.0 mean=469.2 zeros=0
+2026-08-06 03:11:52 [INFO] Telegram message sent to 871141199
+2026-08-06 03:11:53 [INFO] Telegram message sent to 871141199
+2026-08-06 03:11:53 [INFO] Daily text report sent
+2026-08-06 03:11:53 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — 24hr flow chart
+2026-08-06 03:11:53 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — Avg flow by hour
+2026-08-06 03:11:53 [INFO] Running 4-model anomaly detector...
+2026-08-06 03:11:54 [INFO] Full detector: 9 final anomalies (4-model ensemble)
+2026-08-06 03:11:54 [INFO] Telegram message sent to 871141199
+2026-08-06 03:11:54 [INFO] Generating EDA charts...
+2026-08-06 03:11:55 [INFO] send_photo disabled — skipping: 📈 EDA: Full flow time series
+2026-08-06 03:11:55 [INFO] send_photo disabled — skipping: 📈 EDA: Rolling mean ± 2σ band
+2026-08-06 03:11:55 [INFO] send_photo disabled — skipping: 📈 EDA: Flow distribution histogram
+2026-08-06 03:11:55 [INFO] EDA charts sent: 3
+2026-08-06 03:11:55 [INFO] Generating anomaly model charts...
+2026-08-06 03:11:55 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model comparison
+2026-08-06 03:11:55 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Final flags timeline
+2026-08-06 03:11:55 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model-by-model overlay
+2026-08-06 03:11:55 [INFO] Anomaly charts sent: 3
+2026-08-06 03:11:55 [INFO] Generating forecast chart...
+2026-08-06 03:11:55 [INFO] send_photo disabled — skipping: 📈 Forecast: Exp. smoothing +30 steps ahead
+2026-08-06 03:11:55 [INFO] Forecast chart sent
+2026-08-06 03:11:55 [INFO] Fetching Jan–Feb 2026 for pattern analysis...
+2026-08-06 03:12:07 [INFO] Pattern data: 19384 readings, 59 days
+2026-08-06 03:12:08 [ERROR] find_benchmark_pattern failed: Expected 2D array, got 1D array instead:
+array=[].
+Reshape your data either using array.reshape(-1, 1) if your data has a single feature or array.reshape(1, -1) if it contains a single sample.
+2026-08-06 03:12:08 [INFO] Fetching all 4 tags in parallel...
+2026-08-06 03:12:08 [INFO] Fetching 24hr batch for '5114': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:12:08 [INFO] Trying endpoint: /data
+2026-08-06 03:12:08 [INFO] Fetching 24hr batch for '5914': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:12:08 [INFO] Trying endpoint: /data
+2026-08-06 03:12:08 [INFO] Fetching 24hr batch for '5921': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:12:08 [INFO] Trying endpoint: /data
+2026-08-06 03:12:08 [INFO] Fetching 24hr batch for '5503': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:12:08 [INFO] Trying endpoint: /data
+2026-08-06 03:12:09 [INFO] RAW[/data] objectname=5503 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:12:09 [INFO] RAW[/data] objectname=5114 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:12:09 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP1.KRL.KRL-5503.Tags.FMA.AI2', 'timestamp': '2026-08-05  11:11:58', 'value': 0}, {'tagName': 'VMC.DLP1.KRL.KRL-5503.Tags.FMA.AI1', 'timestamp': '2026-08-05  11:11:58', 'value': 0}, {'tagName': 'VMC.DLP1.KRL.KRL-5503.Tags.FMA.AI2', 'timestamp': '2026-08-05  11:14:58', 'va
+2026-08-06 03:12:09 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:54', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:54', 'va
+2026-08-06 03:12:09 [INFO] Endpoint /data — 257 records, 229 non-zero
+2026-08-06 03:12:09 [INFO] Endpoint /data — 483 records, 0 non-zero
+2026-08-06 03:12:09 [WARNING] Endpoint /data has 483 records but ALL ARE ZERO — trying next
+2026-08-06 03:12:09 [INFO] Endpoint /data OK — using 229 non-zero records
+2026-08-06 03:12:09 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:12:09 [INFO] Fetching 720hr batch for '5503': 2026-07-07 00:00 → 2026-08-06 00:00
+2026-08-06 03:12:09 [INFO] Trying endpoint: /data
+2026-08-06 03:12:09 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:12:09 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:12:09 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:12:09 [INFO] RAW[/data] objectname=5921 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:12:09 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP3.KRL.KRL-5921.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:14', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5921.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:14', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5921.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:14', 'va
+2026-08-06 03:12:09 [INFO] Endpoint /data — 476 records, 109 non-zero
+2026-08-06 03:12:09 [INFO] RAW[/data] objectname=5914 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:12:09 [INFO] Endpoint /data OK — using 109 non-zero records
+2026-08-06 03:12:09 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP3.KRL.KRL-5914.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:01:18', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5914.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:01:18', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5914.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:04:18', 'va
+2026-08-06 03:12:09 [INFO] Fetching 720hr batch for '5921': 2026-07-07 00:00 → 2026-08-06 00:00
+2026-08-06 03:12:09 [INFO] Endpoint /data — 310 records, 114 non-zero
+2026-08-06 03:12:09 [INFO] Endpoint /data OK — using 114 non-zero records
+2026-08-06 03:12:09 [INFO] Trying endpoint: /data
+2026-08-06 03:12:09 [INFO] Fetching 720hr batch for '5914': 2026-07-07 00:00 → 2026-08-06 00:00
+2026-08-06 03:12:09 [INFO] Trying endpoint: /data
+2026-08-06 03:12:09 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:12:09 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:12:09 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:12:09 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:12:09 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=5114 -> list of 122 rows
+2026-08-06 03:12:09 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '690.000000', 'timestamp': 1785965920570, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:41:29.000Z'}
+2026-08-06 03:12:09 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'GBT_FT023', 'GYT_FTE17', 'TPO_FT034', 'NMT_FT012', 'MAH_FT046', 'MVR_FT57', 'MAF_FT050', 'NMT_FT005', 'SAJ_FT62', 'POI_FTE09', 'TAR_FT002', 'GER_FT069', 'MAF_FT070', 'SJP_FTE25', 'HRI_GSR2_FT03', 'PGT_FT019', 'NMT_FT003', 'SAM_GSR2_FT13', 'ANG_FT060', 'WRD_FTE31', 'LBH_FT12', 'MJP_FTE22', 'SDR_FT56', 'SYP_FTE36', 'SYB_FT009', 'NMT_FT004', 'SYB_FT010', 'NMT_FT007', 'DOD_FTE06', 'NHO_FTE24', 'MNG_FT048', 'DSM_FT043', 'FAJ_FTE02', 'SKD_FT047', 'HRI_GSR1_FT04', 'DOD_FTE05', 'GJW_FT021', 'SDR_FT53', 'ANG_FT061', 'KPT_FT066', 'KHW_FT047', 'NMT_FT008', 'STL_FT045', 'NMT_FT015', 'NVL_FT042', 'SYP_FT073', 'FAJ_FTE01', 'VAD_GSR1_FT007', 'VAD_GSR2_FT006', 'NDM_FT049', 'NMT_FT001', 'DTR_FTE28', 'AIB_FT015', 'POLY_FT63', 'KAL_FTE33', 'RAI_FTE04', 'POLY_FT64', 'JGD_BOOSTER_FT038', 'POI_FTE08', 'SAM_GSR1_FT14', 'STJ_FTE29', 'KPT_FT067', 'KRL_FT35', 'BKW_FT24', 'STJ_FT059', 'NDH_FT040', 'SKD_FT001', 'SDR_FT51', 'SBP_FT28', 'RAI_FTE03', 'GJW_FTE081', 'BPD_FT33', 'STJ_FT058', 'MJP_FT029', 'PGT_FT018', 'JAI_GSR3_FT027', 'SDN_FT041', 'CHV_FTE23', 'SIN_FTE77', 'DWT_FTE07', 'SDR_FT52', 'MNG_FT068', 'GOA_FT002', 'BHP_FTE78', 'ALW_FT064', 'MBR_FT72', 'NMT_FT010', 'SHR_FTE10', 'MAH_FT066', 'KAL_FTE34', 'FTP_FT039', 'SYB_FT011', 'TAR_FTE19', 'PAR_FT037', 'MKP_FTE27', 'SDR_FT55', 'AJW_GSR1_FT031', 'BOB_FT70', 'NMT_FT013', 'NMT_FT006', 'KPT_FT068', 'BND_FT65', 'NLD_FT020', 'LBH_FT71', 'CHJ_FT008', 'LBB_FT74', 'WAR_FT016', 'SSN_FTE32', 'AJW_GSR2_FT030', 'GOT_FTE20', 'VSN_FTE21', 'SDR_FT54', 'AKT_FTE18', 'MBR_FT36', 'JAI_FT026', 'TDJ_FT05', 'STJ_FTE30', 'SYM_FT076', 'KLI_FT032', 'PGT_FT017', 'KPR_FTE26', 'LBB_FT75'}
+2026-08-06 03:12:09 [ERROR] objectname '5114' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:12:09 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:12:09 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:12:09 [ERROR] All history endpoints exhausted for '5114'.
+2026-08-06 03:12:13 [INFO] RAW[/data] objectname=5503 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:12:13 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP1.KRL.KRL-5503.Tags.FMA.AI2', 'timestamp': '2026-07-07  00:02:59', 'value': 165.44686889648438}, {'tagName': 'VMC.DLP1.KRL.KRL-5503.Tags.FMA.AI1', 'timestamp': '2026-07-07  00:02:59', 'value': 2.7749560307711363}, {'tagName': 'VMC.DLP1.KRL.KRL-5503.Tags.FMA.AI2', 'times
+2026-08-06 03:12:13 [INFO] Endpoint /data — 12165 records, 11998 non-zero
+2026-08-06 03:12:13 [INFO] Endpoint /data OK — using 11998 non-zero records
+2026-08-06 03:12:15 [INFO] RAW[/data] objectname=5921 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:12:15 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP3.KRL.KRL-5921.Tags.FMA.AI2', 'timestamp': '2026-07-07  00:00:14', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5921.Tags.FMA.AI1', 'timestamp': '2026-07-07  00:00:14', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5921.Tags.FMA.AI1', 'timestamp': '2026-07-07  00:03:14', 'va
+2026-08-06 03:12:15 [INFO] Endpoint /data — 11827 records, 2869 non-zero
+2026-08-06 03:12:15 [INFO] Endpoint /data OK — using 2869 non-zero records
+2026-08-06 03:12:15 [INFO] RAW[/data] objectname=5914 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:12:15 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP3.KRL.KRL-5914.Tags.FMA.AI1', 'timestamp': '2026-07-07  00:02:30', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5914.Tags.FMA.AI2', 'timestamp': '2026-07-07  00:02:30', 'value': 0}, {'tagName': 'VMC.DLP3.KRL.KRL-5914.Tags.FMA.AI2', 'timestamp': '2026-07-07  00:13:09', 'va
+2026-08-06 03:12:15 [INFO] Endpoint /data — 9981 records, 2661 non-zero
+2026-08-06 03:12:15 [INFO] Endpoint /data OK — using 2661 non-zero records
+2026-08-06 03:12:16 [WARNING] Skipping 'DLP-5114' in multi-tag PDF — No data returned from API
+2026-08-06 03:12:16 [INFO] Multi-tag fetch complete: 3/4 tags OK
+2026-08-06 03:12:16 [INFO] Generating multi-tag PDF report...
+2026-08-06 03:12:19 [INFO] PDF sent to 871141199
+2026-08-06 03:12:19 [INFO] Multi-tag PDF report sent
+2026-08-06 03:12:19 [INFO] QoS score saved: 2026-08-06 = 43.8%
+2026-08-06 03:12:19 [INFO] Benchmark snapshot saved (supply_window, 1 samples)
+2026-08-06 03:12:19 [INFO] === Daily batch job complete: 248 readings, 67 anomalies, QoS 43.8%, pattern_days=N/A ===
+2026-08-06 03:12:19 [INFO] Scheduler running. Next daily batch at 06:00 IST. Ctrl+C to stop.
+2026-08-06 03:12:19 [INFO] Added job "job_daily_batch_fetch_and_report" to job store "default"
+2026-08-06 03:12:19 [INFO] Scheduler started
+2026-08-06 03:28:09 [INFO] ════════════════════════════════════
+2026-08-06 03:28:09 [INFO]   VMC Worker (Batch Mode + Full Analysis) starting
+2026-08-06 03:28:09 [INFO]   DB         : C:\Users\amarn\Downloads\final3\vmc_readings.db
+2026-08-06 03:28:09 [INFO]   Batch fetch: every 24 hr (1 API call/day)
+2026-08-06 03:28:09 [INFO]   Report at  : 06:00 IST
+2026-08-06 03:28:09 [INFO]   Heartbeat  : OFF
+2026-08-06 03:28:09 [INFO]   Chats      : 1
+2026-08-06 03:28:09 [INFO]   Pattern yr : 2026  k=6  threshold=75%
+2026-08-06 03:28:09 [INFO] ════════════════════════════════════
+2026-08-06 03:28:09 [INFO] DB ready: vmc_readings.db
+2026-08-06 03:28:10 [INFO] Login OK via /login
+2026-08-06 03:28:10 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-08-06 03:28:10 [INFO] Running initial batch fetch on startup...
+2026-08-06 03:28:10 [INFO] === Daily batch job started ===
+2026-08-06 03:28:10 [INFO] Fetching 24hr batch for 'AIB_FT015': 2026-08-05 03:28 → 2026-08-06 03:28
+2026-08-06 03:28:10 [INFO] Trying endpoint: /data
+2026-08-06 03:28:11 [INFO] RAW[/data] objectname=AIB_FT015 -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:28:11 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  03:31:08', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI2', 'timestamp': '2026-08-05  03:31:08', 'value': 0}, {'tagName': 'VMC.DLP2.LBH.LBH-5114.Tags.FMA.AI1', 'timestamp': '2026-08-05  03:34:08', 'va
+2026-08-06 03:28:11 [INFO] Endpoint /data — 481 records, 0 non-zero
+2026-08-06 03:28:11 [WARNING] Endpoint /data has 481 records but ALL ARE ZERO — trying next
+2026-08-06 03:28:11 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:28:12 [INFO] RAW[/ph1/data] objectname=AIB_FT015 -> list of 251 rows
+2026-08-06 03:28:12 [INFO] RAW[/ph1/data] sample row: {'tagName': 'AIB_FT015.Response.Value', 'timestamp': '2026-08-05 03:30:51.000', 'value': 888}
+2026-08-06 03:28:12 [INFO] RAW[/ph1/data] distinct tag-like identifiers in response: {'AIB_FT015.Response.Value'}
+2026-08-06 03:28:12 [INFO] Endpoint /ph1/data — 251 records, 248 non-zero
+2026-08-06 03:28:12 [INFO] Endpoint /ph1/data OK — using 248 non-zero records
+2026-08-06 03:28:12 [INFO] Batch inserted 248 rows into DB
+2026-08-06 03:28:12 [INFO] 24hr filter applied: 248 rows kept for today's analysis
+2026-08-06 03:28:12 [WARNING] No historical benchmark — using hardcoded fallback (24hr continuous supply)
+2026-08-06 03:28:12 [INFO] === QoS DIAGNOSTIC ===
+2026-08-06 03:28:12 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-08-06 03:28:12 [INFO] Windows found: 1
+2026-08-06 03:28:12 [INFO] Total rows: 248
+2026-08-06 03:28:12 [INFO] Flow max=960.0  min=30.0  mean=468.2
+2026-08-06 03:28:12 [INFO] Rows with flow > 1.0: 248
+2026-08-06 03:28:12 [INFO] Rows with flow > 0:   248
+2026-08-06 03:28:12 [INFO] Rows with flow == 0:  0
+2026-08-06 03:28:12 [INFO] Sample timestamps: [Timestamp('2026-08-05 03:30:51'), Timestamp('2026-08-05 03:32:14.630000'), Timestamp('2026-08-05 03:44:29.750000')]
+2026-08-06 03:28:12 [INFO] Sample flow values: [888.0, 870.0, 900.0, 870.0, 894.0, 900.0, 870.0, 840.0, 810.0, 834.0]
+2026-08-06 03:28:12 [INFO] Window 1: start=2026-08-05 03:30:51 end=2026-08-06 03:11:06.310000 dur=1420min peak=960.0 avg=468.2
+2026-08-06 03:28:12 [INFO] === END DIAGNOSTIC ===
+2026-08-06 03:28:12 [INFO] Benchmark: {'start_hour': 0.0, 'end_hour': 23.9, 'duration': 1380.0, 'peak': 5500.0, 'avg': 1000.0, 'samples': 1, 'start_min': 0.0, 'end_min': 1434.0, 'duration_min': 1380.0, 'peak_flow': 5500.0, 'avg_flow': 1000.0}
+2026-08-06 03:28:12 [INFO] Supply windows found: 1
+2026-08-06 03:28:12 [INFO] Flow stats: max=960.0 mean=468.2 zeros=0
+2026-08-06 03:28:13 [INFO] Telegram message sent to 871141199
+2026-08-06 03:28:13 [INFO] Telegram message sent to 871141199
+2026-08-06 03:28:13 [INFO] Daily text report sent
+2026-08-06 03:28:13 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — 24hr flow chart
+2026-08-06 03:28:14 [INFO] send_photo disabled — skipping: 📊 VMC MJP-4231 — Avg flow by hour
+2026-08-06 03:28:14 [INFO] Running 4-model anomaly detector...
+2026-08-06 03:28:14 [INFO] Full detector: 9 final anomalies (4-model ensemble)
+2026-08-06 03:28:14 [INFO] Telegram message sent to 871141199
+2026-08-06 03:28:14 [INFO] Generating EDA charts...
+2026-08-06 03:28:15 [INFO] send_photo disabled — skipping: 📈 EDA: Full flow time series
+2026-08-06 03:28:15 [INFO] send_photo disabled — skipping: 📈 EDA: Rolling mean ± 2σ band
+2026-08-06 03:28:15 [INFO] send_photo disabled — skipping: 📈 EDA: Flow distribution histogram
+2026-08-06 03:28:15 [INFO] EDA charts sent: 3
+2026-08-06 03:28:15 [INFO] Generating anomaly model charts...
+2026-08-06 03:28:15 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model comparison
+2026-08-06 03:28:15 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Final flags timeline
+2026-08-06 03:28:15 [INFO] send_photo disabled — skipping: 🔍 Anomaly: Model-by-model overlay
+2026-08-06 03:28:15 [INFO] Anomaly charts sent: 3
+2026-08-06 03:28:15 [INFO] Generating forecast chart...
+2026-08-06 03:28:15 [INFO] send_photo disabled — skipping: 📈 Forecast: Exp. smoothing +30 steps ahead
+2026-08-06 03:28:15 [INFO] Forecast chart sent
+2026-08-06 03:28:15 [INFO] Fetching Jan–Feb 2026 for pattern analysis...
+2026-08-06 03:28:43 [INFO] Pattern data: 9899 readings, 59 days
+2026-08-06 03:28:47 [INFO] Benchmark snapshot saved (supply_window_janfeb, 39 samples)
+2026-08-06 03:28:47 [INFO] Jan-Feb box benchmark saved: start=19.77h end=23.73h peak=744.0
+2026-08-06 03:28:47 [INFO] send_photo disabled — skipping: 📐 Pattern: Jan+Feb 2026 multi-day overlay — 59 days + benchmark median
+2026-08-06 03:28:47 [INFO] send_photo disabled — skipping: 📐 Pattern: K-Means clusters (k=6) + benchmark
+2026-08-06 03:28:47 [INFO] send_photo disabled — skipping: 📐 Pattern: Daily similarity (threshold 75%)
+2026-08-06 03:28:47 [INFO] send_photo disabled — skipping: 📐 Pattern: Best-match vs worst-match days
+2026-08-06 03:28:48 [INFO] Telegram message sent to 871141199
+2026-08-06 03:28:48 [INFO] Pattern charts + summary sent
+2026-08-06 03:28:48 [INFO] Fetching all 8 tags in parallel...
+2026-08-06 03:28:48 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_4910A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:28:48 [INFO] Trying endpoint: /data
+2026-08-06 03:28:48 [INFO] Skipping endpoint /data for 'FM_Instant_Flow_4910A' because no dlp/flowmeter was configured
+2026-08-06 03:28:48 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:28:48 [INFO] Fetching 24hr batch for 'FM2_Instant_Flow_4910B': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:28:48 [INFO] Trying endpoint: /data
+2026-08-06 03:28:48 [INFO] Fetching 24hr batch for 'FM4_Instant_Flow_4910D': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:28:48 [INFO] Skipping endpoint /data for 'FM2_Instant_Flow_4910B' because no dlp/flowmeter was configured
+2026-08-06 03:28:48 [INFO] Fetching 24hr batch for 'FMA_AI1_4954A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:28:48 [INFO] Trying endpoint: /data
+2026-08-06 03:28:48 [INFO] Fetching 24hr batch for 'FMB_BI1_4962B': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:28:48 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:28:48 [INFO] Trying endpoint: /data
+2026-08-06 03:28:48 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_6294A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:28:48 [INFO] Skipping endpoint /data for 'FM4_Instant_Flow_4910D' because no dlp/flowmeter was configured
+2026-08-06 03:28:48 [INFO] Trying endpoint: /data
+2026-08-06 03:28:48 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_6429A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:28:48 [INFO] Fetching 24hr batch for 'FM_Instant_Flow_4909A': 2026-08-05 00:00 → 2026-08-06 00:00
+2026-08-06 03:28:48 [INFO] Trying endpoint: /data
+2026-08-06 03:28:48 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:28:48 [INFO] Trying endpoint: /data
+2026-08-06 03:28:48 [INFO] Trying endpoint: /data
+2026-08-06 03:28:48 [INFO] Skipping endpoint /data for 'FM_Instant_Flow_6294A' because no dlp/flowmeter was configured
+2026-08-06 03:28:48 [INFO] Skipping endpoint /data for 'FM_Instant_Flow_6429A' because no dlp/flowmeter was configured
+2026-08-06 03:28:48 [INFO] Skipping endpoint /data for 'FM_Instant_Flow_4909A' because no dlp/flowmeter was configured
+2026-08-06 03:28:48 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:28:48 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:28:48 [INFO] Trying endpoint: /ph1/data
+2026-08-06 03:28:48 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:28:48 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:28:48 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:28:48 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:28:48 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:28:48 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:28:48 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:28:48 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:28:48 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:28:48 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:28:48 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:28:48 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:28:48 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:28:48 [INFO] Endpoint /ph1/data — 0 records, 0 non-zero
+2026-08-06 03:28:48 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:28:48 [WARNING] Endpoint /ph1/data returned 0 records — trying next...
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/history/sensor/Flow/Rate
+2026-08-06 03:28:48 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:28:48 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:28:48 [WARNING] Endpoint /api/history/sensor/Flow/Rate returned HTTP 404
+2026-08-06 03:28:48 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/sensor/Flow/Rate/history
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_4910A -> list of 122 rows
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '660.000000', 'timestamp': 1785966066310, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:43:55.000Z'}
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'NMT_FT015', 'MNG_FT048', 'DOD_FTE05', 'KPR_FTE26', 'SYP_FTE36', 'MAF_FT070', 'POI_FTE08', 'KAL_FTE34', 'VAD_GSR1_FT007', 'GOT_FTE20', 'SYB_FT010', 'GER_FT069', 'SAM_GSR2_FT13', 'KPT_FT068', 'NMT_FT013', 'KHW_FT047', 'LBH_FT71', 'KAL_FTE33', 'ALW_FT064', 'SDN_FT041', 'MVR_FT57', 'SDR_FT53', 'SKD_FT047', 'TAR_FT002', 'AKT_FTE18', 'PGT_FT017', 'TAR_FTE19', 'KLI_FT032', 'MAF_FT050', 'GBT_FT023', 'MAH_FT066', 'NDM_FT049', 'NMT_FT010', 'KRL_FT35', 'POI_FTE09', 'NVL_FT042', 'NMT_FT005', 'SJP_FTE25', 'POLY_FT63', 'JGD_BOOSTER_FT038', 'DWT_FTE07', 'KPT_FT066', 'NLD_FT020', 'MJP_FTE22', 'FTP_FT039', 'SYP_FT073', 'SYB_FT009', 'VAD_GSR2_FT006', 'JAI_GSR3_FT027', 'SDR_FT56', 'NHO_FTE24', 'BKW_FT24', 'NMT_FT004', 'MBR_FT72', 'DTR_FTE28', 'MBR_FT36', 'ANG_FT061', 'GJW_FTE081', 'JAI_FT026', 'WAR_FT016', 'AIB_FT015', 'BPD_FT33', 'STJ_FT059', 'SAM_GSR1_FT14', 'NMT_FT001', 'NMT_FT006', 'AJW_GSR1_FT031', 'NMT_FT012', 'LBH_FT12', 'FAJ_FTE02', 'NMT_FT007', 'STJ_FT058', 'RAI_FTE03', 'HRI_GSR2_FT03', 'FAJ_FTE01', 'MJP_FT029', 'SDR_FT54', 'SDR_FT55', 'MKP_FTE27', 'PGT_FT019', 'KPT_FT067', 'GOA_FT002', 'HRI_GSR1_FT04', 'AJW_GSR2_FT030', 'STL_FT045', 'TPO_FT034', 'SHR_FTE10', 'LBB_FT75', 'NDH_FT040', 'ANG_FT060', 'SDR_FT51', 'BOB_FT70', 'PGT_FT018', 'SYM_FT076', 'VSN_FTE21', 'STJ_FTE30', 'SBP_FT28', 'NMT_FT008', 'SDR_FT52', 'CHV_FTE23', 'STJ_FTE29', 'WRD_FTE31', 'SYB_FT011', 'NMT_FT003', 'LBB_FT74', 'PAR_FT037', 'MAH_FT046', 'MNG_FT068', 'GYT_FTE17', 'DOD_FTE06', 'SKD_FT001', 'CHJ_FT008', 'BHP_FTE78', 'SIN_FTE77', 'SAJ_FT62', 'GJW_FT021', 'DSM_FT043', 'POLY_FT64', 'RAI_FTE04', 'SSN_FTE32', 'BND_FT65', 'TDJ_FT05'}
+2026-08-06 03:28:48 [ERROR] objectname 'FM_Instant_Flow_4910A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:28:48 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:28:48 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:28:48 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_4910A'.
+2026-08-06 03:28:48 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:28:48 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:28:48 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:28:48 [WARNING] Endpoint /api/sensor/Flow/Rate/history returned HTTP 404
+2026-08-06 03:28:48 [INFO] Trying endpoint: /api/realtime/sensor/Flow/Rate
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_4909A -> list of 122 rows
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '660.000000', 'timestamp': 1785966066310, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:43:55.000Z'}
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'NMT_FT015', 'MNG_FT048', 'DOD_FTE05', 'KPR_FTE26', 'SYP_FTE36', 'MAF_FT070', 'POI_FTE08', 'KAL_FTE34', 'VAD_GSR1_FT007', 'GOT_FTE20', 'SYB_FT010', 'GER_FT069', 'SAM_GSR2_FT13', 'KPT_FT068', 'NMT_FT013', 'KHW_FT047', 'LBH_FT71', 'KAL_FTE33', 'ALW_FT064', 'SDN_FT041', 'MVR_FT57', 'SDR_FT53', 'SKD_FT047', 'TAR_FT002', 'AKT_FTE18', 'PGT_FT017', 'TAR_FTE19', 'KLI_FT032', 'MAF_FT050', 'GBT_FT023', 'MAH_FT066', 'NDM_FT049', 'NMT_FT010', 'KRL_FT35', 'POI_FTE09', 'NVL_FT042', 'NMT_FT005', 'SJP_FTE25', 'POLY_FT63', 'JGD_BOOSTER_FT038', 'DWT_FTE07', 'KPT_FT066', 'NLD_FT020', 'MJP_FTE22', 'FTP_FT039', 'SYP_FT073', 'SYB_FT009', 'VAD_GSR2_FT006', 'JAI_GSR3_FT027', 'SDR_FT56', 'NHO_FTE24', 'BKW_FT24', 'NMT_FT004', 'MBR_FT72', 'DTR_FTE28', 'MBR_FT36', 'ANG_FT061', 'GJW_FTE081', 'JAI_FT026', 'WAR_FT016', 'AIB_FT015', 'BPD_FT33', 'STJ_FT059', 'SAM_GSR1_FT14', 'NMT_FT001', 'NMT_FT006', 'AJW_GSR1_FT031', 'NMT_FT012', 'LBH_FT12', 'FAJ_FTE02', 'NMT_FT007', 'STJ_FT058', 'RAI_FTE03', 'HRI_GSR2_FT03', 'FAJ_FTE01', 'MJP_FT029', 'SDR_FT54', 'SDR_FT55', 'MKP_FTE27', 'PGT_FT019', 'KPT_FT067', 'GOA_FT002', 'HRI_GSR1_FT04', 'AJW_GSR2_FT030', 'STL_FT045', 'TPO_FT034', 'SHR_FTE10', 'LBB_FT75', 'NDH_FT040', 'ANG_FT060', 'SDR_FT51', 'BOB_FT70', 'PGT_FT018', 'SYM_FT076', 'VSN_FTE21', 'STJ_FTE30', 'SBP_FT28', 'NMT_FT008', 'SDR_FT52', 'CHV_FTE23', 'STJ_FTE29', 'WRD_FTE31', 'SYB_FT011', 'NMT_FT003', 'LBB_FT74', 'PAR_FT037', 'MAH_FT046', 'MNG_FT068', 'GYT_FTE17', 'DOD_FTE06', 'SKD_FT001', 'CHJ_FT008', 'BHP_FTE78', 'SIN_FTE77', 'SAJ_FT62', 'GJW_FT021', 'DSM_FT043', 'POLY_FT64', 'RAI_FTE04', 'SSN_FTE32', 'BND_FT65', 'TDJ_FT05'}
+2026-08-06 03:28:48 [ERROR] objectname 'FM_Instant_Flow_4909A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:28:48 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:28:48 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:28:48 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_4909A'.
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_6429A -> list of 122 rows
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '660.000000', 'timestamp': 1785966066310, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:43:55.000Z'}
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'NMT_FT015', 'MNG_FT048', 'DOD_FTE05', 'KPR_FTE26', 'SYP_FTE36', 'MAF_FT070', 'POI_FTE08', 'KAL_FTE34', 'VAD_GSR1_FT007', 'GOT_FTE20', 'SYB_FT010', 'GER_FT069', 'SAM_GSR2_FT13', 'KPT_FT068', 'NMT_FT013', 'KHW_FT047', 'LBH_FT71', 'KAL_FTE33', 'ALW_FT064', 'SDN_FT041', 'MVR_FT57', 'SDR_FT53', 'SKD_FT047', 'TAR_FT002', 'AKT_FTE18', 'PGT_FT017', 'TAR_FTE19', 'KLI_FT032', 'MAF_FT050', 'GBT_FT023', 'MAH_FT066', 'NDM_FT049', 'NMT_FT010', 'KRL_FT35', 'POI_FTE09', 'NVL_FT042', 'NMT_FT005', 'SJP_FTE25', 'POLY_FT63', 'JGD_BOOSTER_FT038', 'DWT_FTE07', 'KPT_FT066', 'NLD_FT020', 'MJP_FTE22', 'FTP_FT039', 'SYP_FT073', 'SYB_FT009', 'VAD_GSR2_FT006', 'JAI_GSR3_FT027', 'SDR_FT56', 'NHO_FTE24', 'BKW_FT24', 'NMT_FT004', 'MBR_FT72', 'DTR_FTE28', 'MBR_FT36', 'ANG_FT061', 'GJW_FTE081', 'JAI_FT026', 'WAR_FT016', 'AIB_FT015', 'BPD_FT33', 'STJ_FT059', 'SAM_GSR1_FT14', 'NMT_FT001', 'NMT_FT006', 'AJW_GSR1_FT031', 'NMT_FT012', 'LBH_FT12', 'FAJ_FTE02', 'NMT_FT007', 'STJ_FT058', 'RAI_FTE03', 'HRI_GSR2_FT03', 'FAJ_FTE01', 'MJP_FT029', 'SDR_FT54', 'SDR_FT55', 'MKP_FTE27', 'PGT_FT019', 'KPT_FT067', 'GOA_FT002', 'HRI_GSR1_FT04', 'AJW_GSR2_FT030', 'STL_FT045', 'TPO_FT034', 'SHR_FTE10', 'LBB_FT75', 'NDH_FT040', 'ANG_FT060', 'SDR_FT51', 'BOB_FT70', 'PGT_FT018', 'SYM_FT076', 'VSN_FTE21', 'STJ_FTE30', 'SBP_FT28', 'NMT_FT008', 'SDR_FT52', 'CHV_FTE23', 'STJ_FTE29', 'WRD_FTE31', 'SYB_FT011', 'NMT_FT003', 'LBB_FT74', 'PAR_FT037', 'MAH_FT046', 'MNG_FT068', 'GYT_FTE17', 'DOD_FTE06', 'SKD_FT001', 'CHJ_FT008', 'BHP_FTE78', 'SIN_FTE77', 'SAJ_FT62', 'GJW_FT021', 'DSM_FT043', 'POLY_FT64', 'RAI_FTE04', 'SSN_FTE32', 'BND_FT65', 'TDJ_FT05'}
+2026-08-06 03:28:48 [ERROR] objectname 'FM_Instant_Flow_6429A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:28:48 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:28:48 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:28:48 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_6429A'.
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM4_Instant_Flow_4910D -> list of 122 rows
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '660.000000', 'timestamp': 1785966066310, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:43:55.000Z'}
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'NMT_FT015', 'MNG_FT048', 'DOD_FTE05', 'KPR_FTE26', 'SYP_FTE36', 'MAF_FT070', 'POI_FTE08', 'KAL_FTE34', 'VAD_GSR1_FT007', 'GOT_FTE20', 'SYB_FT010', 'GER_FT069', 'SAM_GSR2_FT13', 'KPT_FT068', 'NMT_FT013', 'KHW_FT047', 'LBH_FT71', 'KAL_FTE33', 'ALW_FT064', 'SDN_FT041', 'MVR_FT57', 'SDR_FT53', 'SKD_FT047', 'TAR_FT002', 'AKT_FTE18', 'PGT_FT017', 'TAR_FTE19', 'KLI_FT032', 'MAF_FT050', 'GBT_FT023', 'MAH_FT066', 'NDM_FT049', 'NMT_FT010', 'KRL_FT35', 'POI_FTE09', 'NVL_FT042', 'NMT_FT005', 'SJP_FTE25', 'POLY_FT63', 'JGD_BOOSTER_FT038', 'DWT_FTE07', 'KPT_FT066', 'NLD_FT020', 'MJP_FTE22', 'FTP_FT039', 'SYP_FT073', 'SYB_FT009', 'VAD_GSR2_FT006', 'JAI_GSR3_FT027', 'SDR_FT56', 'NHO_FTE24', 'BKW_FT24', 'NMT_FT004', 'MBR_FT72', 'DTR_FTE28', 'MBR_FT36', 'ANG_FT061', 'GJW_FTE081', 'JAI_FT026', 'WAR_FT016', 'AIB_FT015', 'BPD_FT33', 'STJ_FT059', 'SAM_GSR1_FT14', 'NMT_FT001', 'NMT_FT006', 'AJW_GSR1_FT031', 'NMT_FT012', 'LBH_FT12', 'FAJ_FTE02', 'NMT_FT007', 'STJ_FT058', 'RAI_FTE03', 'HRI_GSR2_FT03', 'FAJ_FTE01', 'MJP_FT029', 'SDR_FT54', 'SDR_FT55', 'MKP_FTE27', 'PGT_FT019', 'KPT_FT067', 'GOA_FT002', 'HRI_GSR1_FT04', 'AJW_GSR2_FT030', 'STL_FT045', 'TPO_FT034', 'SHR_FTE10', 'LBB_FT75', 'NDH_FT040', 'ANG_FT060', 'SDR_FT51', 'BOB_FT70', 'PGT_FT018', 'SYM_FT076', 'VSN_FTE21', 'STJ_FTE30', 'SBP_FT28', 'NMT_FT008', 'SDR_FT52', 'CHV_FTE23', 'STJ_FTE29', 'WRD_FTE31', 'SYB_FT011', 'NMT_FT003', 'LBB_FT74', 'PAR_FT037', 'MAH_FT046', 'MNG_FT068', 'GYT_FTE17', 'DOD_FTE06', 'SKD_FT001', 'CHJ_FT008', 'BHP_FTE78', 'SIN_FTE77', 'SAJ_FT62', 'GJW_FT021', 'DSM_FT043', 'POLY_FT64', 'RAI_FTE04', 'SSN_FTE32', 'BND_FT65', 'TDJ_FT05'}
+2026-08-06 03:28:48 [ERROR] objectname 'FM4_Instant_Flow_4910D' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:28:48 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:28:48 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:28:48 [ERROR] All history endpoints exhausted for 'FM4_Instant_Flow_4910D'.
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM2_Instant_Flow_4910B -> list of 122 rows
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '660.000000', 'timestamp': 1785966066310, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:43:55.000Z'}
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'NMT_FT015', 'MNG_FT048', 'DOD_FTE05', 'KPR_FTE26', 'SYP_FTE36', 'MAF_FT070', 'POI_FTE08', 'KAL_FTE34', 'VAD_GSR1_FT007', 'GOT_FTE20', 'SYB_FT010', 'GER_FT069', 'SAM_GSR2_FT13', 'KPT_FT068', 'NMT_FT013', 'KHW_FT047', 'LBH_FT71', 'KAL_FTE33', 'ALW_FT064', 'SDN_FT041', 'MVR_FT57', 'SDR_FT53', 'SKD_FT047', 'TAR_FT002', 'AKT_FTE18', 'PGT_FT017', 'TAR_FTE19', 'KLI_FT032', 'MAF_FT050', 'GBT_FT023', 'MAH_FT066', 'NDM_FT049', 'NMT_FT010', 'KRL_FT35', 'POI_FTE09', 'NVL_FT042', 'NMT_FT005', 'SJP_FTE25', 'POLY_FT63', 'JGD_BOOSTER_FT038', 'DWT_FTE07', 'KPT_FT066', 'NLD_FT020', 'MJP_FTE22', 'FTP_FT039', 'SYP_FT073', 'SYB_FT009', 'VAD_GSR2_FT006', 'JAI_GSR3_FT027', 'SDR_FT56', 'NHO_FTE24', 'BKW_FT24', 'NMT_FT004', 'MBR_FT72', 'DTR_FTE28', 'MBR_FT36', 'ANG_FT061', 'GJW_FTE081', 'JAI_FT026', 'WAR_FT016', 'AIB_FT015', 'BPD_FT33', 'STJ_FT059', 'SAM_GSR1_FT14', 'NMT_FT001', 'NMT_FT006', 'AJW_GSR1_FT031', 'NMT_FT012', 'LBH_FT12', 'FAJ_FTE02', 'NMT_FT007', 'STJ_FT058', 'RAI_FTE03', 'HRI_GSR2_FT03', 'FAJ_FTE01', 'MJP_FT029', 'SDR_FT54', 'SDR_FT55', 'MKP_FTE27', 'PGT_FT019', 'KPT_FT067', 'GOA_FT002', 'HRI_GSR1_FT04', 'AJW_GSR2_FT030', 'STL_FT045', 'TPO_FT034', 'SHR_FTE10', 'LBB_FT75', 'NDH_FT040', 'ANG_FT060', 'SDR_FT51', 'BOB_FT70', 'PGT_FT018', 'SYM_FT076', 'VSN_FTE21', 'STJ_FTE30', 'SBP_FT28', 'NMT_FT008', 'SDR_FT52', 'CHV_FTE23', 'STJ_FTE29', 'WRD_FTE31', 'SYB_FT011', 'NMT_FT003', 'LBB_FT74', 'PAR_FT037', 'MAH_FT046', 'MNG_FT068', 'GYT_FTE17', 'DOD_FTE06', 'SKD_FT001', 'CHJ_FT008', 'BHP_FTE78', 'SIN_FTE77', 'SAJ_FT62', 'GJW_FT021', 'DSM_FT043', 'POLY_FT64', 'RAI_FTE04', 'SSN_FTE32', 'BND_FT65', 'TDJ_FT05'}
+2026-08-06 03:28:48 [ERROR] objectname 'FM2_Instant_Flow_4910B' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:28:48 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:28:48 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:28:48 [ERROR] All history endpoints exhausted for 'FM2_Instant_Flow_4910B'.
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] objectname=FM_Instant_Flow_6294A -> list of 122 rows
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] sample row: {'tagname': 'AIB_FT015', 'parameter_type': 'Rate', 'location': 'AIB', 'sensor_type': 'Flow', 'value': '660.000000', 'timestamp': 1785966066310, 'created_at': '2025-10-13T14:39:51.000Z', 'updated_at': '2026-08-05T21:43:55.000Z'}
+2026-08-06 03:28:48 [INFO] RAW[/api/realtime/sensor/Flow/Rate] distinct tag-like identifiers in response: {'NMT_FT015', 'MNG_FT048', 'DOD_FTE05', 'KPR_FTE26', 'SYP_FTE36', 'MAF_FT070', 'POI_FTE08', 'KAL_FTE34', 'VAD_GSR1_FT007', 'GOT_FTE20', 'SYB_FT010', 'GER_FT069', 'SAM_GSR2_FT13', 'KPT_FT068', 'NMT_FT013', 'KHW_FT047', 'LBH_FT71', 'KAL_FTE33', 'ALW_FT064', 'SDN_FT041', 'MVR_FT57', 'SDR_FT53', 'SKD_FT047', 'TAR_FT002', 'AKT_FTE18', 'PGT_FT017', 'TAR_FTE19', 'KLI_FT032', 'MAF_FT050', 'GBT_FT023', 'MAH_FT066', 'NDM_FT049', 'NMT_FT010', 'KRL_FT35', 'POI_FTE09', 'NVL_FT042', 'NMT_FT005', 'SJP_FTE25', 'POLY_FT63', 'JGD_BOOSTER_FT038', 'DWT_FTE07', 'KPT_FT066', 'NLD_FT020', 'MJP_FTE22', 'FTP_FT039', 'SYP_FT073', 'SYB_FT009', 'VAD_GSR2_FT006', 'JAI_GSR3_FT027', 'SDR_FT56', 'NHO_FTE24', 'BKW_FT24', 'NMT_FT004', 'MBR_FT72', 'DTR_FTE28', 'MBR_FT36', 'ANG_FT061', 'GJW_FTE081', 'JAI_FT026', 'WAR_FT016', 'AIB_FT015', 'BPD_FT33', 'STJ_FT059', 'SAM_GSR1_FT14', 'NMT_FT001', 'NMT_FT006', 'AJW_GSR1_FT031', 'NMT_FT012', 'LBH_FT12', 'FAJ_FTE02', 'NMT_FT007', 'STJ_FT058', 'RAI_FTE03', 'HRI_GSR2_FT03', 'FAJ_FTE01', 'MJP_FT029', 'SDR_FT54', 'SDR_FT55', 'MKP_FTE27', 'PGT_FT019', 'KPT_FT067', 'GOA_FT002', 'HRI_GSR1_FT04', 'AJW_GSR2_FT030', 'STL_FT045', 'TPO_FT034', 'SHR_FTE10', 'LBB_FT75', 'NDH_FT040', 'ANG_FT060', 'SDR_FT51', 'BOB_FT70', 'PGT_FT018', 'SYM_FT076', 'VSN_FTE21', 'STJ_FTE30', 'SBP_FT28', 'NMT_FT008', 'SDR_FT52', 'CHV_FTE23', 'STJ_FTE29', 'WRD_FTE31', 'SYB_FT011', 'NMT_FT003', 'LBB_FT74', 'PAR_FT037', 'MAH_FT046', 'MNG_FT068', 'GYT_FTE17', 'DOD_FTE06', 'SKD_FT001', 'CHJ_FT008', 'BHP_FTE78', 'SIN_FTE77', 'SAJ_FT62', 'GJW_FT021', 'DSM_FT043', 'POLY_FT64', 'RAI_FTE04', 'SSN_FTE32', 'BND_FT65', 'TDJ_FT05'}
+2026-08-06 03:28:48 [ERROR] objectname 'FM_Instant_Flow_6294A' not found in response (this endpoint returns the full network feed, not a per-tag one). Available tag names include: ['AIB_FT015', 'AJW_GSR1_FT031', 'AJW_GSR2_FT030', 'AKT_FTE18', 'ALW_FT064', 'ANG_FT060', 'ANG_FT061', 'BHP_FTE78', 'BKW_FT24', 'BND_FT65', 'BOB_FT70', 'BPD_FT33', 'CHJ_FT008', 'CHV_FTE23', 'DOD_FTE05'] ...
+2026-08-06 03:28:48 [INFO] Endpoint /api/realtime/sensor/Flow/Rate — 0 records, 0 non-zero
+2026-08-06 03:28:48 [WARNING] Endpoint /api/realtime/sensor/Flow/Rate returned 0 records — trying next...
+2026-08-06 03:28:48 [ERROR] All history endpoints exhausted for 'FM_Instant_Flow_6294A'.
+2026-08-06 03:28:49 [INFO] RAW[/data] objectname=FMA_AI1_4954A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:28:49 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP1.JAM.JAM-4954.Tags.FMA.AI1', 'timestamp': '2026-08-05  00:00:45', 'value': 4.561521811410785}, {'tagName': 'VMC.DLP1.JAM.JAM-4954.Tags.FMA.AI2', 'timestamp': '2026-08-05  00:00:45', 'value': 0.059095241129398346}, {'tagName': 'VMC.DLP1.JAM.JAM-4954.Tags.FMA.AI1', 'time
+2026-08-06 03:28:49 [INFO] Endpoint /data — 454 records, 150 non-zero
+2026-08-06 03:28:49 [INFO] Endpoint /data OK — using 150 non-zero records
+2026-08-06 03:28:49 [INFO] Fetching 720hr batch for 'FMA_AI1_4954A': 2026-07-07 00:00 → 2026-08-06 00:00
+2026-08-06 03:28:49 [INFO] Trying endpoint: /data
+2026-08-06 03:28:49 [INFO] RAW[/data] objectname=FMB_BI1_4962B -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:28:49 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.JAM.JAM-4962.Tags.FMB.BI2', 'timestamp': '2026-08-05  00:02:15', 'value': 0.6267492771148682}, {'tagName': 'VMC.DLP2.JAM.JAM-4962.Tags.FMB.BI1', 'timestamp': '2026-08-05  00:02:15', 'value': 17.25082006305456}, {'tagName': 'VMC.DLP2.JAM.JAM-4962.Tags.FMB.BI2', 'timest
+2026-08-06 03:28:49 [INFO] Endpoint /data — 473 records, 473 non-zero
+2026-08-06 03:28:49 [INFO] Endpoint /data OK — using 473 non-zero records
+2026-08-06 03:28:49 [INFO] Fetching 720hr batch for 'FMB_BI1_4962B': 2026-07-07 00:00 → 2026-08-06 00:00
+2026-08-06 03:28:49 [INFO] Trying endpoint: /data
+2026-08-06 03:28:53 [INFO] RAW[/data] objectname=FMA_AI1_4954A -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:28:53 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP1.JAM.JAM-4954.Tags.FMA.AI1', 'timestamp': '2026-07-07  00:02:37', 'value': 0}, {'tagName': 'VMC.DLP1.JAM.JAM-4954.Tags.FMA.AI2', 'timestamp': '2026-07-07  00:02:37', 'value': 0}, {'tagName': 'VMC.DLP1.JAM.JAM-4954.Tags.FMA.AI1', 'timestamp': '2026-07-07  00:16:19', 'va
+2026-08-06 03:28:53 [INFO] Endpoint /data — 11644 records, 2157 non-zero
+2026-08-06 03:28:53 [INFO] Endpoint /data OK — using 2157 non-zero records
+2026-08-06 03:28:54 [INFO] RAW[/data] objectname=FMB_BI1_4962B -> dict with keys ['data', 'lastdaylastReading', 'lastdaysTotal', 'lastlifeTotal', 'todaylastReading', 'todaysTotal', 'todayslifeTotal']
+2026-08-06 03:28:54 [INFO] RAW[/data] sample: {'data': [{'tagName': 'VMC.DLP2.JAM.JAM-4962.Tags.FMB.BI2', 'timestamp': '2026-07-07  00:10:02', 'value': 0}, {'tagName': 'VMC.DLP2.JAM.JAM-4962.Tags.FMB.BI1', 'timestamp': '2026-07-07  00:10:02', 'value': 0}, {'tagName': 'VMC.DLP2.JAM.JAM-4962.Tags.FMB.BI2', 'timestamp': '2026-07-07  00:13:09', 'va
+2026-08-06 03:28:54 [INFO] Endpoint /data — 12274 records, 9963 non-zero
+2026-08-06 03:28:54 [INFO] Endpoint /data OK — using 9963 non-zero records
+2026-08-06 03:28:55 [WARNING] Skipping 'RTU-4910-A' in multi-tag PDF — No data returned from API
+2026-08-06 03:28:55 [WARNING] Skipping 'RTU-4910-B' in multi-tag PDF — No data returned from API
+2026-08-06 03:28:55 [WARNING] Skipping 'RTU-4910-D' in multi-tag PDF — No data returned from API
+2026-08-06 03:28:55 [WARNING] Skipping 'RTU-6294-A' in multi-tag PDF — No data returned from API
+2026-08-06 03:28:55 [WARNING] Skipping 'RTU-6429-A' in multi-tag PDF — No data returned from API
+2026-08-06 03:28:55 [WARNING] Skipping 'RTU-4909-A' in multi-tag PDF — No data returned from API
+2026-08-06 03:28:55 [INFO] Multi-tag fetch complete: 2/8 tags OK
+2026-08-06 03:28:55 [INFO] Generating multi-tag PDF report...
+2026-08-06 03:28:57 [INFO] PDF sent to 871141199
+2026-08-06 03:28:57 [INFO] Multi-tag PDF report sent
+2026-08-06 03:28:57 [INFO] QoS score saved: 2026-08-06 = 43.7%
+2026-08-06 03:28:57 [INFO] Benchmark snapshot saved (supply_window, 1 samples)
+2026-08-06 03:28:57 [INFO] === Daily batch job complete: 248 readings, 67 anomalies, QoS 43.7%, pattern_days=59 ===
+2026-08-06 03:28:57 [INFO] Scheduler running. Next daily batch at 06:00 IST. Ctrl+C to stop.
+2026-08-06 03:28:57 [INFO] Added job "job_daily_batch_fetch_and_report" to job store "default"
+2026-08-06 03:28:57 [INFO] Scheduler started
