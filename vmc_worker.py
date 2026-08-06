@@ -3075,7 +3075,7 @@ def _merge_overlapping_slots(slots: list) -> list:
 
 def build_tag_benchmark_slots(all_windows: list, meter_peak: float,
                                threshold_pct: float = TAG_WINDOW_THRESHOLD_PCT,
-                               distance_t: float = 1.5) -> tuple[list, float]:
+                               distance_t: float = 1.0) -> tuple[list, float]:
     threshold_value = threshold_pct * meter_peak
     usable = [w for w in all_windows if w["peak"] >= threshold_value]
     if not usable:
@@ -3106,10 +3106,12 @@ def build_tag_benchmark_slots(all_windows: list, meter_peak: float,
         })
     slots.sort(key=lambda s: s["start_hour"])
 
-    # Merge clusters that are really the same underlying session before
-    # treating them as separate "expected daily supply slots".
-    slots = _merge_overlapping_slots(slots)
-
+    # NOTE: slots are intentionally left un-merged here (matches the
+    # official 60-minute Ward-linkage clustering methodology, PDF Section
+    # 2.3/2.4). This is safe now because score_tag_day_vs_benchmark() scores
+    # each of today's actual windows against its nearest session rather than
+    # penalizing every historical session that today didn't happen to match -
+    # so noisy near-duplicate clusters no longer inflate "missing" penalties.
     for i, s in enumerate(slots, start=1):
         s["slot_no"] = i
     return slots, threshold_value
@@ -3124,90 +3126,71 @@ def _hour_range_overlap(a_start: float, a_end: float, b_start: float, b_end: flo
     return max(0.0, min(a_end, b_end) - max(a_start, b_start))
 
 
-def match_today_vs_benchmark_slots(today_windows: list, benchmark_slots: list,
-                                    time_tol_min: float = TAG_TIME_TOL_MIN,
-                                    flow_tol_pct: float = TAG_FLOW_TOL_PCT,
-                                    min_coverage: float = 0.5) -> tuple[list, float, list]:
+def score_tag_day_vs_benchmark(today_windows: list, benchmark_slots: list,
+                                time_tol_min: float = TAG_TIME_TOL_MIN,
+                                flow_tol_pct: float = TAG_FLOW_TOL_PCT) -> tuple[list, float]:
     """
-    Match today's supply windows against benchmark slots by TIME-RANGE OVERLAP
-    rather than nearest-start-time-within-a-narrow-window.
+    QoS scoring for the multi-tag report, using the SAME formula as the
+    single-tag score_day_vs_benchmark() / compute_qos() (PDF Section 2.4):
 
-    Rationale: benchmark slots can legitimately span most of the day (e.g. a
-    tag with one long continuous supply session), and the exact minute flow
-    crosses the detection threshold varies day to day. Requiring today's
-    window to start within a few minutes of a slot's *median* start time
-    penalizes normal timing jitter as if it were a missed supply session.
-    Instead, a slot counts as delivered if today's actual supply covers at
-    least `min_coverage` of that slot's historical time span — one today
-    window may satisfy several slots (or vice versa) if it covers them.
+        QoS = 50% timing score + 50% flow score
+
+    where timing score penalizes start/end-time deviation vs. tolerance, and
+    flow score penalizes peak/avg-flow deviation vs. tolerance, each scaled
+    to 0 at 3x the tolerance. This replaces the old additive per-slot penalty
+    model (-15 missing / -8 extra / -3 timing / 0.6x flow-dev%).
+
+    Each of today's detected windows is matched to its NEAREST benchmark
+    session by start time (mirrors "each detected window is matched to the
+    nearest benchmark session by start time proximity", PDF Section 2.4).
+    Scores are averaged across all of today's windows. A benchmark session
+    that has no matching window today is not penalized directly — exactly
+    as in the single-tag pipeline, a day is judged on the windows it
+    actually had, not on how many historical sessions it "should" have had.
+    This also avoids the earlier bug where noisy historical clustering split
+    one continuous session into several slots and penalized every day for
+    "missing" the duplicates.
     """
     if not benchmark_slots:
-        return ["No benchmark available yet for this tag"], 50.0, []
+        return ["No benchmark available yet for this tag"], 50.0
     if not today_windows:
-        return ["No supply windows detected today"], 0.0, []
+        return ["No supply windows detected today"], 0.0
 
-    anomalies, matched_pairs, used_windows = [], [], set()
+    anomalies = []
+    timing_scores, flow_scores = [], []
 
-    for slot in benchmark_slots:
-        slot_span = max(slot["end_hour"] - slot["start_hour"], 1e-6)
-        best_i, best_cov, best_overlap_dev_min = None, 0.0, None
-        for i, w in enumerate(today_windows):
-            ov = _hour_range_overlap(w["start_hour_frac"], w["end_hour_frac"],
-                                      slot["start_hour"], slot["end_hour"])
-            cov = ov / slot_span
-            if cov > best_cov:
-                best_i, best_cov = i, cov
+    for w in today_windows:
+        slot = min(benchmark_slots,
+                   key=lambda s: abs(w["start_hour_frac"] - s["start_hour"]))
 
-        if best_i is not None and best_cov >= min_coverage:
-            used_windows.add(best_i)
-            w = today_windows[best_i]
-            matched_pairs.append((slot, w))
-            peak_dev = abs(w["peak"] - slot["peak"]) / max(slot["peak"], 1e-6)
-            avg_dev  = abs(w["avg"]  - slot["avg"])  / max(slot["avg"],  1e-6)
-            start_dev_min = abs(w["start_hour_frac"] - slot["start_hour"]) * 60
-            if start_dev_min > time_tol_min:
-                h, m = int(slot["start_hour"]), int((slot["start_hour"] % 1) * 60)
-                direction = "earlier" if w["start_hour_frac"] < slot["start_hour"] else "later"
-                anomalies.append(
-                    f"Start time {start_dev_min:.0f} min {direction} than usual "
-                    f"(benchmark: {h:02d}:{m:02d})")
-            if peak_dev > flow_tol_pct:
-                anomalies.append(f"Peak flow deviated by {peak_dev*100:.0f}%")
-            if avg_dev > flow_tol_pct:
-                anomalies.append(f"Avg flow deviated by {avg_dev*100:.0f}%")
-        else:
+        start_dev = abs(w["start_hour_frac"] - slot["start_hour"]) * 60
+        end_dev   = abs(w["end_hour_frac"]   - slot["end_hour"])   * 60
+        dur_dev   = abs(w["duration"]        - slot["duration"])
+
+        if start_dev > time_tol_min:
             h, m = int(slot["start_hour"]), int((slot["start_hour"] % 1) * 60)
-            eh, em = int(slot["end_hour"]), int((slot["end_hour"] % 1) * 60)
-            anomalies.append(
-                f"Missing expected supply slot {h:02d}:{m:02d}\u2013{eh:02d}:{em:02d} "
-                f"(only {best_cov*100:.0f}% covered)")
+            anomalies.append(f"Start time off by {start_dev:.0f} min (benchmark: {h:02d}:{m:02d})")
+        if end_dev > time_tol_min:
+            h, m = int(slot["end_hour"]), int((slot["end_hour"] % 1) * 60)
+            anomalies.append(f"End time off by {end_dev:.0f} min (benchmark: {h:02d}:{m:02d})")
+        if dur_dev > time_tol_min:
+            anomalies.append(f"Duration deviated by {dur_dev:.0f} min (benchmark: {slot['duration']:.0f} min)")
 
-    for i, w in enumerate(today_windows):
-        if i not in used_windows:
-            covers_any_slot = any(
-                _hour_range_overlap(w["start_hour_frac"], w["end_hour_frac"],
-                                     s["start_hour"], s["end_hour"]) > 0
-                for s in benchmark_slots)
-            if not covers_any_slot:
-                anomalies.append(
-                    f"Extra window at {w['start'].strftime('%H:%M')} not matching any benchmark slot")
+        peak_dev = abs(w["peak"] - slot["peak"]) / slot["peak"] if slot["peak"] > 0 else 0
+        avg_dev  = abs(w["avg"]  - slot["avg"])  / slot["avg"]  if slot["avg"]  > 0 else 0
 
-    qos = 100.0
-    for a in anomalies:
-        if a.startswith("Missing expected supply slot"):
-            qos -= 15
-        elif a.startswith("Extra window"):
-            qos -= 8
-        elif "than usual" in a:
-            qos -= 3   # timing jitter matters less than actually missing supply
-        elif "deviated by" in a:
-            try:
-                pct = float(a.split("deviated by")[1].split("%")[0])
-            except Exception:
-                pct = 20
-            qos -= min(pct, 50) * 0.6
-    qos = round(max(0.0, min(100.0, qos)), 1)
-    return anomalies, qos, matched_pairs
+        if peak_dev > flow_tol_pct:
+            anomalies.append(f"Peak flow deviated by {peak_dev*100:.0f}% (benchmark: {slot['peak']:.1f} m\u00b3/hr)")
+        if avg_dev > flow_tol_pct:
+            anomalies.append(f"Avg flow deviated by {avg_dev*100:.0f}% (benchmark: {slot['avg']:.1f} m\u00b3/hr)")
+
+        t_score = max(0, 1 - (start_dev + end_dev) / (2 * time_tol_min * 3))
+        f_score = max(0, 1 - (peak_dev  + avg_dev)  / (2 * flow_tol_pct  * 3))
+        timing_scores.append(t_score)
+        flow_scores.append(f_score)
+
+    qos = (np.mean(timing_scores) * 0.5 + np.mean(flow_scores) * 0.5) * 100
+    return anomalies, round(min(100, max(0, qos)), 1)
 
 
 # Builds the hourly median + spread ("normal margin band") used by the pattern-band
@@ -3277,7 +3260,7 @@ def fetch_tag_data(tag: dict) -> dict:
         today_windows = detect_supply_windows_df(
             df_today, threshold=1.0, min_duration_min=TAG_MIN_WINDOW_DURATION_MIN)
 
-        anomaly_list, qos, _ = match_today_vs_benchmark_slots(today_windows, benchmark_slots)
+        anomaly_list, qos = score_tag_day_vs_benchmark(today_windows, benchmark_slots)
         status = "EXCELLENT" if qos >= 85 else "GOOD" if qos >= 70 else "POOR"
 
         avg_flow  = float(df_today["flow_rate"].mean())
