@@ -3203,7 +3203,11 @@ def build_pattern_baseline(df_lookback: pd.DataFrame, bin_minutes: int = 15) -> 
     df["bin"] = (df["hour_frac"] * 60 // bin_minutes) * bin_minutes / 60
     grouped = df.groupby("bin")["flow_rate"]
     median  = grouped.median()
-    std     = grouped.std().fillna(0)
+    # Floor std so bins with few/uniform historical samples don't collapse to a
+    # ~0-width band (which would flag ordinary sensor jitter as a pattern anomaly).
+    std_floor_pct = 0.05
+    std_raw = grouped.std().fillna(0)
+    std     = np.maximum(std_raw, np.maximum(median.abs() * std_floor_pct, 1.0))
     order   = np.argsort(median.index.values)
     return {
         "bin_hours": median.index.values[order],
@@ -3240,12 +3244,17 @@ def fetch_tag_data(tag: dict) -> dict:
         if not today_records:
             return {"name": name, "pg_tag": pg_tag, "error": "No data returned from API"}
         df_today = pd.DataFrame(today_records)
-        df_today = tag_anomalies(df_today).sort_values("timestamp").reset_index(drop=True)
 
         lookback_records = fetch_batch_24hr(
             objectname=objectname, hours=TAG_BENCHMARK_LOOKBACK_DAYS * 24, end=report_day_end,
             dlp=dlp, flowmeter=flowmeter)
         df_lookback = pd.DataFrame(lookback_records) if lookback_records else df_today.copy()
+
+        # Per-tag night threshold from THIS tag's own history, not the global
+        # single-meter NIGHT_FLOW_LIMIT (see compute_tag_night_limit docstring).
+        night_limit = compute_tag_night_limit(df_lookback)
+        df_today = tag_anomalies(df_today, night_limit=night_limit) \
+                        .sort_values("timestamp").reset_index(drop=True)
 
         meter_peak = float(max(df_lookback["flow_rate"].max(), df_today["flow_rate"].max(), 1.0))
 
@@ -3383,7 +3392,10 @@ def make_tag_pattern_band_chart(tag_name: str, df_today: pd.DataFrame,
 
         today_med = np.interp(df["hour_frac"], bin_hours, median)
         today_std = np.interp(df["hour_frac"], bin_hours, std)
-        outside = (df["flow_rate"] > today_med + today_std) | (df["flow_rate"] < today_med - today_std)
+        # +-Z_THRESHOLD std, matching the same anomaly definition used elsewhere in
+        # the report (was +-1 std, which flags ~32% of a normal day by construction).
+        band = Z_THRESHOLD * today_std
+        outside = (df["flow_rate"] > today_med + band) | (df["flow_rate"] < today_med - band)
         n_pattern_anom = int(outside.sum())
     else:
         outside = pd.Series([False] * len(df), index=df.index)
@@ -3671,20 +3683,43 @@ def make_multi_tag_pdf_report(tag_results: list) -> io.BytesIO:
 # ─────────────────────────────────────────────────────────────────────────────
 # Adds a simple anomaly flag column using basic threshold rules.
 # This is faster and simpler than the full ML detector, so it is useful for basic daily summaries.
-def tag_anomalies(df: pd.DataFrame) -> pd.DataFrame:
+def tag_anomalies(df: pd.DataFrame, night_limit: float = NIGHT_FLOW_LIMIT) -> pd.DataFrame:
+    """
+    night_limit defaults to the global NIGHT_FLOW_LIMIT (calibrated for the single-tag
+    AIB_FT015/FMA_5445 meter). For the multi-tag report, callers should pass a
+    per-tag night_limit derived from that tag's own history (see
+    compute_tag_night_limit()) instead of relying on this default, since a single
+    fixed flow value is not meaningful across tags with very different normal
+    flow ranges.
+    """
     df = df.copy()
     df["is_anomaly"] = 0
     df.loc[df["flow_rate"] > SPIKE_THRESHOLD, "is_anomaly"] = 1
     df.loc[df["flow_rate"] < 0,               "is_anomaly"] = 1
     df["_hour"]   = df["timestamp"].dt.hour
     night_mask    = (df["_hour"] >= NIGHT_START_HR) | (df["_hour"] <= NIGHT_END_HR)
-    df.loc[night_mask & (df["flow_rate"] > NIGHT_FLOW_LIMIT), "is_anomaly"] = 1
+    df.loc[night_mask & (df["flow_rate"] > night_limit), "is_anomaly"] = 1
     active = df["flow_rate"] > 0
     if active.sum() > 10:
         z = np.abs(stats.zscore(df.loc[active, "flow_rate"]))
         df.loc[df.index[active][z > Z_THRESHOLD], "is_anomaly"] = 1
     df = df.drop(columns=["_hour"])
     return df
+
+
+# Derives a per-tag night-flow anomaly threshold from that tag's OWN lookback history,
+# instead of reusing the single fixed NIGHT_FLOW_LIMIT across every tag. Mirrors the
+# same Z_THRESHOLD used by the single-tag z-score rule, so "anomaly" means the same
+# statistical thing everywhere in the report.
+def compute_tag_night_limit(df_lookback: pd.DataFrame,
+                             fallback: float = NIGHT_FLOW_LIMIT) -> float:
+    if df_lookback is None or df_lookback.empty:
+        return fallback
+    hours = df_lookback["timestamp"].dt.hour
+    night_vals = df_lookback.loc[(hours >= NIGHT_START_HR) | (hours <= NIGHT_END_HR), "flow_rate"]
+    if len(night_vals) < 10:
+        return fallback
+    return float(night_vals.mean() + Z_THRESHOLD * night_vals.std())
 
 
 # ─────────────────────────────────────────────────────────────────────────────

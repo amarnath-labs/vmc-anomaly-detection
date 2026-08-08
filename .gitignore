@@ -4,3 +4,17 @@ env/
 __pycache__/
 *.pyc
 *.db
+# Secrets — never commit
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local database (contains readings, not code)
+vmc_readings.db
+
+# Logs
+*.log
