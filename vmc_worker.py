@@ -196,7 +196,7 @@ NIGHT_END_HR     = 5
 # These values control how sensitive the machine-learning checks are and how many
 # future points the forecast chart should estimate.
 CONTAMINATION    = 0.05   # Isolation Forest contamination
-Z_SENSITIVITY    = 3.0    # Z-score threshold for full detector
+RANGE_BAND_PCT   = 0.10   # ±10% band around rolling mean used by the range-check rule
 FORECAST_STEPS   = 30     # Exponential smoothing steps ahead
 
 # --- Pattern analysis settings ---
@@ -556,16 +556,18 @@ def send_pdf(buf: io.BytesIO, filename: str, caption: str,
 # Beginner idea: each model looks for unusual flow in a different way. A row becomes a final
 # anomaly when enough models agree, or when a simple physical rule catches something obvious.
 def run_full_detectors(df: pd.DataFrame,
-                       sensitivity: float = Z_SENSITIVITY,
                        contamination: float = CONTAMINATION,
                        spike_threshold: float = SPIKE_THRESHOLD,
                        night_start: int = NIGHT_START_HR,
-                       night_end: int = NIGHT_END_HR) -> pd.DataFrame:
+                       night_end: int = NIGHT_END_HR,
+                       range_band_pct: float = RANGE_BAND_PCT) -> pd.DataFrame:
     """
-    Runs Z-score, IQR, Isolation Forest, and PCA anomaly detection on df.
-    Identical logic to Streamlit run_detectors() — returns enriched DataFrame
-    with columns: anom_zscore, anom_iqr, anom_iforest, anom_pca, model_vote,
-    final_anomaly, iforest_score, pca_score.
+    Runs a ±10% range check, IQR, Isolation Forest, and PCA anomaly detection on df.
+    Returns enriched DataFrame with columns: anom_range, anom_iqr, anom_iforest,
+    anom_pca, model_vote, final_anomaly, iforest_score, pca_score.
+    (Z-score detection has been removed — replaced by the ±10%-of-rolling-mean
+    range check below, which is simpler and doesn't need a normal-distribution
+    assumption.)
     """
     df = df.copy()
     # Work on a copy so the original DataFrame is not changed unexpectedly.
@@ -591,21 +593,17 @@ def run_full_detectors(df: pd.DataFrame,
     active = df["flow_rate"] > 0
     dfa = df[active].copy()
 
-    # Method 1: Z-score marks values that are far away from the average.
-    # Example: if most flow readings are near 1000 and one reading is 9000, its Z-score
-    # will be high, so it may be marked as unusual.
-    # Z-score (supply hours only)
-    supply_hours = dfa[~((dfa["hour"] >= night_start) | (dfa["hour"] <= night_end))]
-    if len(supply_hours) > 10:
-        z_vals = np.abs(stats.zscore(supply_hours["flow_rate"]))
-        supply_hours = supply_hours.copy()
-        supply_hours["anom_z"] = (z_vals > sensitivity).astype(int)
-        dfa["anom_z"] = 0
-        dfa.loc[supply_hours.index, "anom_z"] = supply_hours["anom_z"]
-    else:
-        dfa["anom_z"] = 0
-    df["anom_zscore"] = 0
-    df.loc[dfa.index, "anom_zscore"] = dfa["anom_z"]
+    # Method 1: ±10% range check marks values that stray more than 10% away from
+    # the recent rolling average. Example: if the rolling average is 1000, anything
+    # below 900 or above 1100 is flagged — a simple, easy-to-explain band instead of
+    # a statistical distribution assumption.
+    lower_band = df["roll_mean_10"] * (1 - range_band_pct)
+    upper_band = df["roll_mean_10"] * (1 + range_band_pct)
+    df["anom_range"] = ((df["flow_rate"] < lower_band) |
+                         (df["flow_rate"] > upper_band)).astype(int)
+    # Only meaningful once a real rolling average exists and flow is active;
+    # skip the very first reading and zero/negative flow (handled by other rules).
+    df.loc[df["flow_rate"] <= 0, "anom_range"] = 0
 
     # Method 2: IQR marks values outside the usual middle range.
     # IQR uses the 25% and 75% positions of the data, which makes it less sensitive
@@ -671,7 +669,8 @@ def run_full_detectors(df: pd.DataFrame,
                                (df["flow_rate"] < df["roll_mean_10"] * 0.4)).astype(int)
     # Count how many models marked each row as unusual.
     # This is called a vote: higher vote means more detectors agree the row looks suspicious.
-    df["model_vote"]    = (df["anom_zscore"] + df["anom_iqr"] +
+    # anom_range (±10% band) takes the slot previously held by Z-score.
+    df["model_vote"]    = (df["anom_range"] + df["anom_iqr"] +
                            df["anom_iforest"] + df["anom_pca"])
     # Final decision: combine model votes with simple physical rules.
     # Physical rules catch clear cases like negative flow, very high spikes, or sudden drops;
@@ -1147,7 +1146,7 @@ def make_anomaly_charts(df_full: pd.DataFrame) -> list[io.BytesIO]:
 
     # Chart 1 — Model comparison bar
     mcounts = {
-        "Z-score":          int(df_full.get("anom_zscore",   pd.Series([0])).sum()),
+        "Range \u00b110%":       int(df_full.get("anom_range",    pd.Series([0])).sum()),
         "IQR":              int(df_full.get("anom_iqr",      pd.Series([0])).sum()),
         "Isolation Forest": int(df_full.get("anom_iforest",  pd.Series([0])).sum()),
         "PCA Autoencoder":  int(df_full.get("anom_pca",      pd.Series([0])).sum()),
@@ -1198,8 +1197,8 @@ def make_anomaly_charts(df_full: pd.DataFrame) -> list[io.BytesIO]:
         bufs.append(buf2)
 
     # Chart 3 — 4-panel model-by-model overlay
-    model_cols   = ["anom_zscore", "anom_iqr", "anom_iforest", "anom_pca"]
-    model_labels = ["Z-score", "IQR", "Isolation Forest", "PCA Autoencoder"]
+    model_cols   = ["anom_range", "anom_iqr", "anom_iforest", "anom_pca"]
+    model_labels = ["Range \u00b110%", "IQR", "Isolation Forest", "PCA Autoencoder"]
     model_colors = ["#ffa94d", "#ff6b6b", "#8b949e", "#3fb950"]
     cols_present = [c for c in model_cols if c in df_full.columns]
     if cols_present:
@@ -1970,13 +1969,13 @@ def make_pdf_report(df: pd.DataFrame, benchmark: dict,
 
     # Full-detector counts (if available)
     if df_full is not None and "model_vote" in df_full.columns:
-        z_cnt  = int(df_full.get("anom_zscore",  pd.Series([0])).sum())
+        rg_cnt = int(df_full.get("anom_range",   pd.Series([0])).sum())
         iq_cnt = int(df_full.get("anom_iqr",     pd.Series([0])).sum())
         if_cnt = int(df_full.get("anom_iforest", pd.Series([0])).sum())
         pc_cnt = int(df_full.get("anom_pca",     pd.Series([0])).sum())
         fa_cnt = int(df_full.get("final_anomaly",pd.Series([0])).sum())
         model_note = (
-            f" The 4-model ensemble (Z-score: {z_cnt}, IQR: {iq_cnt}, "
+            f" The 4-model ensemble (Range \u00b110%: {rg_cnt}, IQR: {iq_cnt}, "
             f"Isolation Forest: {if_cnt}, PCA: {pc_cnt}) produced "
             f"{fa_cnt} final anomaly flags.")
     else:
@@ -2004,7 +2003,7 @@ def make_pdf_report(df: pd.DataFrame, benchmark: dict,
         ["Supply Windows",   str(len(windows)),
          "Night Anomalies",  str(night_anom)],
         ["Benchmark Samples",str(benchmark["samples"]) if benchmark else "N/A",
-         "Z-score Anomalies",str(max(0, total_anom - spike_anom - night_anom))],
+         "Other Anomalies",  str(max(0, total_anom - spike_anom - night_anom))],
     ]
     col_w   = [W/4]*4
     sum_tbl = Table(sum_data, colWidths=col_w)
@@ -2231,9 +2230,9 @@ def make_pdf_report(df: pd.DataFrame, benchmark: dict,
 
         mm_data = [
             ["Method",               "Anomalies Flagged", "Description"],
-            ["Z-score",
-             str(int(df_full.get("anom_zscore",  pd.Series([0])).sum())),
-             "Supply-hour readings > 3σ from mean"],
+            ["Range \u00b110%",
+             str(int(df_full.get("anom_range",   pd.Series([0])).sum())),
+             "More than 10% above/below the rolling average"],
             ["IQR",
              str(int(df_full.get("anom_iqr",     pd.Series([0])).sum())),
              "Beyond Q1 − 2.5×IQR or Q3 + 2.5×IQR fence"],
@@ -2278,7 +2277,7 @@ def make_pdf_report(df: pd.DataFrame, benchmark: dict,
             typ  = ("Spike" if fl > SPIKE_THRESHOLD else
                     "Night" if (pd.Timestamp(row["timestamp"]).hour >= NIGHT_START_HR or
                                 pd.Timestamp(row["timestamp"]).hour <= NIGHT_END_HR)
-                    else "Z-score")
+                    else "Other")
             top_data.append([str(i), ts_s, f"{fl:.1f}", typ])
         top_tbl = Table(top_data, colWidths=[0.7*cm, 5*cm, 6*cm, 5.7*cm])
         top_tbl.setStyle(TableStyle([
@@ -3457,26 +3456,38 @@ def make_multi_tag_pdf_report(tag_results: list) -> io.BytesIO:
         textColor=colors.white, alignment=TA_CENTER, fontName="Helvetica")
 
     def summary_table(r):
+        # "All Anomalies" is an honest combined count across the three separate
+        # anomaly systems this report runs, which previously were never summed:
+        #   - point-level: spike/negative/night/z-score-style checks on individual readings
+        #   - benchmark: today's supply-window peak/avg flow vs. last month's typical pattern
+        #   - pattern-band: today's flow vs. the median +/- band built from history
+        all_anom = r["total_anom"] + len(r.get("anomalies", [])) + r.get("pattern_anom", 0)
         rows = [
             ["Metric", "Value", "Metric", "Value"],
             ["Readings", f"{r['readings']:,}", "QoS Score", f"{r['qos']:.1f}%"],
             ["Average Flow", f"{r['avg_flow']:.1f} m\u00b3/hr", "Status", r["status"]],
             ["Peak Flow", f"{r['peak_flow']:.1f} m\u00b3/hr", "Supply Windows", str(r["supply_windows"])],
             ["Spike Anomalies", str(r["spike_anom"]), "Night Anomalies", str(r["night_anom"])],
-            ["Total Final Anomalies", str(r["total_anom"]), "Peak Time", r["peak_str"]],
+            ["Point-level Anomalies", str(r["total_anom"]), "Peak Time", r["peak_str"]],
+            ["All Anomalies (combined)", str(all_anom), "", ""],
         ]
         t = Table(rows, colWidths=[W*0.28, W*0.22, W*0.28, W*0.22])
         t.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1a3a5c")),
             ("TEXTCOLOR",  (0,0), (-1,0), colors.white),
             ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
-            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#eef2f7")]),
+            ("ROWBACKGROUNDS", (0,1), (-1,-2), [colors.white, colors.HexColor("#eef2f7")]),
             ("FONTNAME",   (0,1), (0,-1), "Helvetica-Bold"),
-            ("FONTNAME",   (2,1), (2,-1), "Helvetica-Bold"),
+            ("FONTNAME",   (2,1), (2,-2), "Helvetica-Bold"),
             ("FONTSIZE",   (0,0), (-1,-1), 8),
             ("GRID",       (0,0), (-1,-1), 0.5, colors.HexColor("#d5dce3")),
             ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
             ("TOPPADDING", (0,0), (-1,-1), 4), ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            # Merge the two trailing empty cells on the "All Anomalies" row into the
+            # value cell, and highlight the row since it's the new honest combined total.
+            ("SPAN",       (1,-1), (3,-1)),
+            ("BACKGROUND", (0,-1), (-1,-1), colors.HexColor("#fdf1d6")),
+            ("FONTNAME",   (1,-1), (1,-1), "Helvetica-Bold"),
         ]))
         return t
 
@@ -3566,6 +3577,13 @@ def make_multi_tag_pdf_report(tag_results: list) -> io.BytesIO:
         story.append(Paragraph(f"Tag: {r['name']}", tag_h_style))
         story.append(Paragraph(f"PostgreSQL tag: <b>{r['pg_tag']}</b>", pg_style))
 
+        # Compute the pattern-band chart FIRST (even though it's rendered later in this
+        # section) so its anomaly count is available for the Summary table below —
+        # otherwise "All Anomalies" couldn't include it.
+        band_buf, pattern_anom_count = make_tag_pattern_band_chart(
+            r["name"], r["df_today"], r["baseline"])
+        r["pattern_anom"] = pattern_anom_count
+
         qos_banner = Table([[f"QoS Score: {r['qos']:.1f}%"]], colWidths=[W])
         qos_banner.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,-1), qos_color(r["qos"])),
@@ -3610,7 +3628,6 @@ def make_multi_tag_pdf_report(tag_results: list) -> io.BytesIO:
         story.append(Spacer(1, 6))
 
         story.append(Paragraph("Today's flow vs last-month median pattern band", h2_style))
-        band_buf, _ = make_tag_pattern_band_chart(r["name"], r["df_today"], r["baseline"])
         story.append(RLImage(band_buf, width=W, height=W*3.2/9))
 
         story.append(HRFlowable(width=W, thickness=0.6, color=colors.HexColor("#d5dce3"),
@@ -3786,7 +3803,7 @@ def build_daily_report(df: pd.DataFrame) -> str:
         f"🚨 *Anomalies: {total_anom} ({anom_pct:.1f}%)*\n"
         f"  • Spike (>{SPIKE_THRESHOLD}): {spike_anom}\n"
         f"  • Night flow: {night_anom}\n"
-        f"  • Z-score/pattern: {max(0, total_anom - spike_anom - night_anom)}\n\n"
+        f"  • Other/pattern: {max(0, total_anom - spike_anom - night_anom)}\n\n"
         f"⏰ *Peak Anomaly Hours*\n"
         f"{top_hrs_str}\n"
         f"⚠️ *Top Events*\n"
@@ -3821,7 +3838,7 @@ def job_daily_batch_fetch_and_report():
       6.  Send 24hr flow chart                                      [original]
       7.  Send hourly bar chart                                     [original]
       ── NEW steps below ───────────────────────────────────────────────────
-      8.  Run 4-model full detector (Z-score/IQR/IF/PCA)           [NEW]
+      8.  Run 4-model full detector (Range \u00b110%/IQR/IF/PCA)          [NEW]
       9.  Send EDA charts (time series, rolling mean, histogram)    [NEW]
       10. Send anomaly model charts (bar, timeline, panels, heatmap)[NEW]
       11. Send forecast chart (exp. smoothing + residuals)          [NEW]
@@ -3980,13 +3997,13 @@ def job_daily_batch_fetch_and_report():
         fa_count = int(df_full["final_anomaly"].sum())
         log.info("Full detector: %d final anomalies (4-model ensemble)", fa_count)
         # Append a Telegram summary of the ensemble result
-        z_c  = int(df_full["anom_zscore"].sum())
+        rg_c = int(df_full["anom_range"].sum())
         iq_c = int(df_full["anom_iqr"].sum())
         if_c = int(df_full["anom_iforest"].sum())
         pc_c = int(df_full["anom_pca"].sum())
         ensemble_msg = (
             f"🔬 *4-Model Anomaly Ensemble*\n"
-            f"  • Z-score:          {z_c}\n"
+            f"  • Range \u00b110%:       {rg_c}\n"
             f"  • IQR:              {iq_c}\n"
             f"  • Isolation Forest: {if_c}\n"
             f"  • PCA Autoencoder:  {pc_c}\n"
